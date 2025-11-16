@@ -2,4 +2,4 @@
 /build/
 gmon.out
 /bin/*spv
-./BoidSim
+/BoidSim
