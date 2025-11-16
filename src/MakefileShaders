@@ -1,0 +1,36 @@
+
+# Multithread
+	MAKEFLAGS += -j
+
+# GLSL
+	#GLSLFLAGS += --target-env=vulkan1.0
+	GLSL_DEBUG_FLAGS = -O0
+	GLSL_RELEASE_FLAGS = -O
+
+ifeq ($(RELEASE), 1)
+	GLSLFLAGS += $(GLSL_RELEASE_FLAGS);
+else
+	GLSLFLAGS += $(GLSL_DEBUG_FLAGS);
+endif
+
+
+EMBED_DIR = ../bin/embed
+BIN_DIR= ../bin
+GLSLS := $(foreach dir, $(SRC_DIRS), $(wildcard $(dir)/*.glsl))
+
+.PHONY: all clean
+
+
+# glslc does not handle "/./" the same as gcc
+SPVS := $(subst /./,/,$(GLSLS:%.glsl=$(BIN_DIR)/%.spv))
+
+
+all: $(SPVS)
+
+$(BUILD_DIR)/%.spv: %.glsl $(GLSLS)
+	echo $<
+	glslc -c $< -o $@ $(GLSLFLAGS)
+
+clean:
+	echo $(SPVS)
+	$(RM) $(BIN_DIR)/*spv

@@ -1,0 +1,62 @@
+
+
+/*
+Resume Checklist
+
+[ ] Boids	
+	[ ] Port to new engine
+	[ ] Startup faileure mesages
+
+
+//[ ] Ray Tracer
+//	[ ] Lines from anywhere to anywhere.
+//	[ ] Multiple threads
+//	[ ] Reflections
+//		[ ] Line
+//		[ ] Circle
+//		[ ] ...
+
+
+[ ] Shared
+	[ ] Pixel aligned GUI (Fixed layout)
+		[ ] Query previous frame
+		[ ] Button
+		[ ] Slider
+	[ ] Port of Camera2
+	[ ] Arena fallback
+	[ ] State system
+		[ ] Text slides
+
+[ ] Cleanup pass through entire codebase
+
+- Send out resume
+*/
+
+
+// Drawing abstraction:
+// Pixel // RGBA
+// View // Offset of image
+// Image // Buffer of pixels
+// Swapchain // Presentation of images
+// Window	// Section of the screen
+
+// Framebuffer(...) will be a struct of frame specific recources (sort of like Vulkan).
+
+//												Status:
+// Swapchain abstraction 							DONE
+// Xpresent											DONE						
+// Xshm												STARTED
+// font loading										DONE
+// print to image									DONE
+// 2d rasterization									STARTED
+// Print only works with one argument: va_copy()	DONE
+// pixel ui
+// 2d ray tracing accumulator						STARTED
+// color histogram
+// port to WASM
+// port to Vulkan
+// Fix print for arrays (overrun end of arena)
+// Cleanup print (increment ouput pointer)
+// Handle case where there is Xpresent but no Xshm
+
+

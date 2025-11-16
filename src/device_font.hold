@@ -1,0 +1,83 @@
+#pragma once
+
+#include "device_geometry.h"
+#include "device_texture.h"
+#include "font.h"
+
+// This font system is ready for a rewrite.
+
+// Plain simple glyph atlas: ASCII (32 - 126) monospaced
+
+//#define BERKELEY_MONO_REG_PATH "/usr/share/fonts/TTF/BerkeleyMono-Condensed.ttf"
+#define BERKELEY_MONO_REG_PATH "bin/BerkeleyMono-Regular.ttf"
+
+struct DeviceGlyphMap;
+
+
+typedef struct{
+	u32 horizontal_advance, vertical_advance;
+	u32 x_bearing, y_bearing;
+	u32 ascender, descender;
+	u32 global_line_gap;
+
+	u64 last_frame_used;
+	void *host_image; 
+	b32 on_device;
+
+	uvec2 pos;
+	uvec2 size;
+}DeviceGlyph;
+
+typedef struct{
+	s32 code;
+	const char *font;
+	DeviceGlyph *glyph;
+}DeviceGlyphKey;
+
+typedef struct{
+	GlyphGenerator glyph_generator;
+	struct DeviceGlyphMap *map;
+}DeviceFont;
+
+typedef struct{
+	const char* name;
+	DeviceFont *font;
+}DeviceFontKey;
+
+typedef struct DeviceGlyphMap{
+	u32 max_glyph_count;
+	u32 glyph_count;
+	DeviceGlyphKey *glyph_map;
+	
+	u32 free_glyph_count;
+	u32* free_glyph_indices;
+	DeviceGlyph *glyph_storage;
+
+
+	u32 max_font_count;
+	u32 font_count;
+	DeviceFontKey *font_map;
+
+	LinmaxRectanglePack packer;
+	DeviceImage2D glyph_image;
+
+	u32 *array_of_glyph_indices_needed_this_frame;
+	u64 frame_accum;
+
+	DeviceBuffer staging_buffer;
+}DeviceGlyphMap;
+
+
+typedef struct{
+	uvec2 size;
+	u32 index;	
+}DeviceGlyphCoordinates;
+
+
+DeviceGlyphMap* create_device_glyph_map(DeviceImage2D image, u32 max_glyph_count, Arena *arena);
+DeviceFont* create_device_font(DeviceGlyphMap *map, const char *path, const char *name, Arena *arena);
+DeviceGlyph request_device_glyph_from_font(DeviceFont *font, u32 code, u32 height);
+DeviceGlyph request_device_glyph(DeviceGlyphMap *map, const char *font_name, u32 code, u32 height);
+
+
+

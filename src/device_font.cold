@@ -1,0 +1,136 @@
+#include "device_font.h"
+
+u64 xorshift64star(u64 s[1])
+{
+    u64 x = s[0];
+    x ^= x >> 12;
+    x ^= x << 25;
+    x ^= x >> 27;
+    s[0] = x;
+    return x * UINT64_C(0x2545f4914f6cdd1d);
+}
+
+u64 hash_value_string_pair(u64 a, const char *b)
+{
+	return xorshift64star(&a) + hash_cstring(b);		
+}
+
+
+
+DeviceGlyphMap* create_device_glyph_map(DeviceImage2D image, u32 max_glyph_count, Arena *arena)
+{
+	u32 max_font_count = 32;
+	DeviceGlyphMap *map = arena_alloc(sizeof(DeviceGlyphMap), arena);
+	map->max_glyph_count = max_glyph_count;
+	map->glyph_count = 0;
+	map->glyph_map = arena_alloc_and_zero(sizeof(DeviceGlyphKey*) *  max_glyph_count, arena);
+
+	map->max_font_count = max_font_count;
+	map->font_count = 0;
+	map->font_map = arena_alloc_and_zero(sizeof(DeviceFontKey*) *  max_font_count, arena);
+
+	map->packer = linmax_rectangle_pack_init(image.size.x, image.size.y);
+	map->glyph_image =  image;
+
+	return map;
+}
+DeviceFont* create_device_font(DeviceGlyphMap *map, const char *path, const char *name, Arena *arena)
+{
+
+	u64 font_index = 0;
+	if(name)
+	{
+		font_index = hash_value_string_pair(0, name) % map->max_font_count;
+	}
+			
+	u64 a = font_index;
+	u64 b = map->max_glyph_count;
+	for(u32 j = 0; j < 2; j++)
+	{
+		for(u64 i = a; i < b; i++)
+		{
+			DeviceFontKey *key = &map->font_map[i];
+			if(key->font)
+			{
+				if(key->name && name)
+				{
+					if(cstrings_are_equal(key->name, name))
+					{
+						// Match
+						return key->font;
+					}
+				}
+				else if((key->name == name) == 0)
+				{
+				 	// Default match	
+					return key->font;
+				}
+			}
+			else
+			{
+				// empty
+				DeviceFont *font = arena_alloc(sizeof(DeviceFont), arena);
+				font->glyph_generator = create_glyph_generator(path, arena);
+				font->map = map;
+				key->font = font;
+				key->name = name;
+			}
+		}
+		a = 0;
+		b = font_index;
+	}
+	return 0;
+}
+
+DeviceFont *lookup_device_font(DeviceGlyphMap *map, const char *name)
+{
+	u64 font_index = 0;
+	if(name)
+	{
+		font_index = hash_value_string_pair(0, name) % map->max_font_count;
+	}
+
+	u64 a = font_index;
+	u64 b = map->max_glyph_count;
+	for(u32 j = 0; j < 2; j++)
+	{
+		for(u64 i = a; i < b; i++)
+		{
+			DeviceFontKey *key = &map->font_map[i];
+			if(key->font)
+			{
+				if(key->name && name)
+				{
+					if(cstrings_are_equal(key->name, name))
+					{
+						// Match
+						return key->font;
+					}
+				}
+				else if((key->name == name) == 0)
+				{
+				 	// Default match	
+					return key->font;
+				}
+			}
+		}
+		a = 0;
+		b = font_index;
+	}
+	return map->font_map[0].font;
+}
+
+DeviceGlyph request_device_glyph_from_font(DeviceFont *font, u32 code, u32 height)
+{
+	DeviceGlyph glyph = {
+		
+	};
+	return glyph;
+}
+
+DeviceGlyph request_device_glyph(DeviceGlyphMap *map, const char *font_name, u32 code, u32 height)
+{
+	DeviceFont *font = lookup_device_font(map, font_name);
+	DeviceGlyph glyph = request_device_glyph_from_font(font, code, height);
+	return glyph;
+}

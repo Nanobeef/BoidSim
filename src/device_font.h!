@@ -1,0 +1,40 @@
+#pragma once
+
+#include "device_font.h"
+#include "font.h"
+#include "device_geometry.h"
+
+
+// Plain simple glyph atlas: ASCII (32 - 126) monospaced
+
+//#define BERKELEY_MONO_REG_PATH "/usr/share/fonts/TTF/BerkeleyMono-Condensed.ttf"
+#define BERKELEY_MONO_REG_PATH "bin/BerkeleyMono-Regular.ttf"
+
+
+
+typedef struct{
+	TextureRectangle rectangle;
+	svec2 bearing;
+	u32 advance;
+}SimpleGlyph;
+
+typedef struct{
+	TextureCoordinate texture;
+	SimpleGlyph ascii_glyphs[126-32]; // (32 -126)
+	uvec2 max_box; 
+	s32 line_gap;
+}SimpleFont;
+
+SimpleFont create_simple_font(DeviceArena* device_arena, TextureMap* map, u32 font_size, Arena* arena);
+
+/*
+typedef struct{
+	u32 width, height;
+	s32 horizontal_bearing_x, horizontal_bearing_y;
+	s32 vertical_bearing_x, vertical_bearing_y;
+	s32 horizontal_advance, vertical_advance;
+	TextureCoordinate coordinate;
+}DeviceGlyph;
+
+*/
+

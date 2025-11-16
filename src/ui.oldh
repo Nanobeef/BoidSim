@@ -1,0 +1,160 @@
+#pragma once
+
+#include "device_graphics.h"
+
+// Plans for a better immediate mode ui
+
+typedef struct{
+	u32 a;
+}UI_Event;
+
+typedef enum{
+	UI_EMPTY = 0,
+	UI_BOX,
+	UI_BUTTON,
+	UI_SLIDER,
+	UI_MAX,
+}UI_Type;
+
+typedef struct{
+	fvec4 fill;
+	fvec4 outline;
+	fvec4 text;
+}UI_BoxTheme;
+
+typedef struct{
+	fvec4 on, off;
+	fvec4 outline;
+	fvec4 hover_add;
+}UI_ButtonTheme;
+
+typedef struct{
+	fvec4 a,b;
+	fvec4 outline;
+	fvec4 background;
+	fvec4 hover_add;
+}UI_SliderTheme;
+
+typedef struct{
+	UI_BoxTheme box;
+	UI_ButtonTheme button;
+	UI_SliderTheme slider;
+}UI_Theme;
+
+typedef struct UI_Element{
+	union{
+		struct{
+			f32 left;
+			f32 top;
+			f32 right;
+			f32 bottom;
+		};
+		struct{
+			fvec2 a;
+			fvec2 b;
+		};
+	};
+
+
+	u64 index;
+	char* name;
+	struct UI_Element* parent;
+
+	UI_Event* events;
+
+
+	b32 is_hovering; // Debug
+
+	UI_Type type;
+	void* data;
+
+	struct UI_Element *long_name_next; 	// Name under root.
+	struct UI_Element *last_frame;
+
+}UI_Element;
+
+typedef struct UI{
+	UI_Element* root_element;
+	UI_Element** elements_array;
+	UI_Element** elements_map;
+
+	UI_Theme theme;
+
+	u64 random_state4[4];
+
+	f32 glyph_height;
+	f32 corner_quality;
+	f32 corner_radius;
+	f32 border_thickness;
+	u64 disable_time;
+	b32 disable;
+	Arena* arena;
+
+	SimpleFont* font;
+
+	struct UI* last_frame;
+}UI;
+
+typedef enum{
+	UI_BOX_FILL = 1,
+	UI_BOX_OUTLINE = 2,
+	UI_BOX_FILL_AND_OUTLINE = 3,
+	UI_BOX_TEXT = 4,
+}UI_BoxType;
+
+typedef struct{
+	UI_BoxType type;	
+	UI_BoxTheme* theme;
+	UI_Element* element;
+
+	b32 *hover, *press;	
+
+	fvec2 hit_a, hit_b;
+
+	fvec2 text_margin;
+	char* text;
+	f32 glyph_height;
+
+	b32 states[2];
+}UI_Box;
+
+typedef enum{
+	UI_BUTTON_MONOSTABLE = 0,	
+	UI_BUTTON_ASTABLE,
+	UI_BUTTON_MONOSTABLE_TIMED,
+}UI_ButtonType;
+
+typedef struct{
+	UI_ButtonType type;
+	UI_ButtonTheme* theme;
+	UI_Element* element;
+
+	fvec2 hit_a, hit_b;
+
+	b32 *hover, *press;	
+	b32 default_state;
+	u64 pressed_time;
+	u64 time_delay;
+
+	b32 states[2];
+}UI_Button;
+
+typedef enum{
+	UI_SLIDER_DRAG = 0,
+}UI_SliderType;
+
+typedef struct{
+	UI_SliderType type;
+	UI_SliderTheme* theme;
+	UI_Element* element;
+
+	UI_Button* button;
+	fvec2 a, b, p;
+
+	b32 required_state;
+	f32* t;
+	f32 state[1];
+}UI_Slider;
+
+b32 make_the_ui(FrameEvents fe, SimpleFont* font, Camera2 camera, Arena* arena);
+void draw_the_ui(DeviceVertexBuffer* vb, Camera2* camera);
