@@ -23,7 +23,6 @@ void init_threads()
 	THREAD = &main_thread;	
 	THREAD->arena = allocate_sub_arena(MB * 128, &main_arena);
 	MAIN_THREAD = THREAD;
-	MAIN_THREAD->global.boid.mutex = create_mutex(&MAIN_THREAD->arena);
 }
 void cleanup_threads()
 {

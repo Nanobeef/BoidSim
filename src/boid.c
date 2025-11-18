@@ -133,14 +133,18 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 	{
 		struct GlobalBoidParams *bp = &MAIN_THREAD->global.boid;
 
-		bp->cohesion_range_norm = 0.5;
-		bp->seperation_range_norm = 0.5;
+		bp->cohesion_range_norm = 0.1;
+		bp->seperation_range_norm = 0.7;
 		bp->alignment_range_norm = 1.0;
 
-		bp->cohesion_strength_norm = 0.4;
-		bp->seperation_strength_norm = 0.4;
+		bp->cohesion_strength_norm = 0.9;
+		bp->seperation_strength_norm = 0.9;
 		bp->alignment_strength_norm = 0.3;
-		bp->boid_size_norm = 0.1;
+
+		bp->boid_size_norm = 0.5;
+		bp->min_speed_norm = 0.2;
+		bp->max_speed_norm = 0.4;
+		bp->acceleration_norm = 0.5;
 	}
 
 	for(u32 i = 0; i < BOID_SIM_FRAME_COUNT; i++)
@@ -713,7 +717,7 @@ void boid_sim_resolve(BoidSimParams *p)
 	Task task;
 
 	
-	f32 pw = 3.0;
+	f32 pw = 2;
 	f32 seperation_strength = powf(sim->global.alignment_strength_norm, pw);
 	f32 cohesion_strength = powf(sim->global.cohesion_strength_norm, pw);
 	f32 alignment_strength = powf(sim->global.alignment_strength_norm, pw);

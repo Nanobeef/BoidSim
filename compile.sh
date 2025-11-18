@@ -145,8 +145,8 @@ needs_to_link=0
 glsl_compiler="glslc"
 
 compiler="gcc"
-cflags_common="-std=gnu99 -D_GNU_SOURCE -gdwarf" 
-cflags_debug="-D DEBUG -O0"
+cflags_common="-std=gnu99 -D_GNU_SOURCE"
+cflags_debug="-D DEBUG -O0 -gdwarf"
 cflags_release="-D RELEASE -O4"
 cflags_profile=""
 #clfags_profile="-p -pg"
@@ -293,7 +293,7 @@ time_last(){
 }
 
 run_single_build(){
-	
+
 	
 	time_first 
 	section_print "Compiling Shaders:"

@@ -415,7 +415,6 @@ b32 barrier_wait(Barrier barrier);
 typedef struct{
 
 	struct GlobalBoidParams{
-		Mutex mutex;
 		f32 seperation_range_norm;
 		f32 cohesion_range_norm;
 		f32 alignment_range_norm;
