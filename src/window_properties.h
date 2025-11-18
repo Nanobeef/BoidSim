@@ -9,6 +9,9 @@
 #define OS_OSX 0
 
 
+
+
+
 typedef struct{
 	s32 x,y;
 	u32 width, height;

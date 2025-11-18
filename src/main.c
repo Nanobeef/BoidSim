@@ -33,7 +33,7 @@ s32 main()
 
 	WindowProperties window_properties = query_best_window_properties(WINDOW_DRIVER_X11,WINDOW_SWAPCHAIN_X11,WINDOW_ACCELERATION_SOFTWARE);
 	Event *event_ring_buffer = allocate_ring_buffer(Event, 1024, &main_arena);
-	FrameEvents fe = {0};
+	FrameEvents fe = {.event_ring_buffer = event_ring_buffer};
 	Instance *instance = create_instance(&main_arena);
 	Device* device = create_device_by_type(instance, VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU, &main_arena);
 	window_properties.device = device;
@@ -65,6 +65,8 @@ s32 main()
 		
 	BoidSim* boid_sim = create_boid_sim(device, 1024u * 1024u * 1u, 32, &main_arena);
 
+	b32 move_world_camera = false;
+
 	while(fe.escape.pressed == false)
 	{
 		loop_time = loop_time_end(loop_time);
@@ -77,7 +79,7 @@ s32 main()
 			reset_boid_sim(boid_sim);
 		}
 
-		b32 should_recreate_renderer = poll_device_renderer(&dr, fe);
+		b32 should_recreate_renderer = poll_device_renderer(&dr, fe, move_world_camera);
 
 		if(fe.window_resized || should_recreate_renderer) 
 		{
@@ -116,7 +118,7 @@ s32 main()
 					.color = fvec4_scalar_div(fvec4_make(255.0, 253.0, 208.0, 255.0) , 255.0),
 					.time = get_time_ms(),
 					.index = dr.debug_index,
-					.scale = 0.5f,
+					.scale = boid_sim->global.boid_size_norm,
 				};
 				vkCmdPushConstants(cb.handle, dr.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(DeviceRendererPushRange), &push_range);
 			}
@@ -161,13 +163,6 @@ s32 main()
 				DeviceVertexBuffer *vb = &dr.overlay_vertex_buffers[frame_index];
 				clear_vertex_buffer(vb);
 
-				if(fe.mouse_move_time > fe.time - 400000000)
-				{
-					gdraw_circle_outline(vb,32 , 0.01, 0.015, dr.overlay_camera.mouse, fvec4_make(1.0, 0.0, 0.0, 0.4));
-				}
-
-
-
 				draw_boid_sim_overlay(vb, dr.overlay_camera, dr.simple_font, boid_sim);
 
 				VkPipeline vertex2_pipeline = dr.vertex2_pipeline;
@@ -182,11 +177,13 @@ s32 main()
 			{
 				DeviceVertexBuffer *vb = &dr.ui_vertex_buffers[frame_index];
 				clear_vertex_buffer(vb);
-				fmat3 ui_affine = ui_test(vb, &dr.simple_font, fe, swapchain.size);
+				UI *ui = ui_test(vb, &dr.simple_font, fe, swapchain.size);
+				move_world_camera = !ui->focused;
+
 
 				{
 					DeviceRendererPushRange push_range = {
-						.affine = fmat3_padding(ui_affine),
+						.affine = fmat3_padding(ui->affine_matrix),
 						.color = fvec4_make(1.0, 0.0, 0.0, 1.0),
 						.time = get_time_ms(),
 						.index = dr.debug_index,

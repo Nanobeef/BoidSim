@@ -1,4 +1,3 @@
-
 #include "device_graphics.h"
 
 

@@ -65,7 +65,7 @@ fvec2 camera2_pixel_to_world(Camera2 camera, fvec2 pos);
 
 Camera2 make_camera2(uvec2 frame_size);
 Camera2 resize_camera2(Camera2 camera, uvec2 frame_size);
-Camera2 update_camera2(Camera2 camera, FrameEvents fe, b32 pan_and_zoom);
+Camera2 update_camera2(Camera2 camera, FrameEvents fe, b32 should_poll);
 
 fvec2 camera2_transform(Camera2 camera, fvec2 in);
 fvec2 camera2_inverse_transform(Camera2 camera, fvec2 in);

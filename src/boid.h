@@ -100,6 +100,8 @@ typedef struct{
 	atomic u32 requested_thread_count;
 	atomic BoidSimStage stage;
 
+	struct GlobalBoidParams global;
+
 	Mutex mutex;
 	Cond cond;
 	Barrier host_barrier;

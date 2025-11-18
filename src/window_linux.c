@@ -105,6 +105,26 @@ void* create_window_driver_x11(WindowDriverCreateInfo info, Arena *arena)
 		&window_attributes
 	);
 
+	Cursor cursor = XCreateFontCursor(display, XC_gobbler);
+	//Cursor cursor = XCreateFontCursor(display, XC_gumby);
+	{
+		XColor foreground = {
+			.red = (u16)(0.94 * 65535.0),
+			.green = (u16)(0.62 * 65535.0),
+			.blue = (u16)(0.054 * 65535.0),
+			.flags = DoRed | DoGreen | DoBlue,
+		};
+		XColor background = {
+			.red = (u16)(0.0 * 65535.0),
+			.green = (u16)(0.0 * 65535.0),
+			.blue = (u16)(0.0 * 65535.0),
+		};
+		XRecolorCursor(display, cursor, &foreground, &background);
+	}
+	XDefineCursor(display, window, cursor);
+
+
+
 	XContext user_pointer = XUniqueContext();
 	if(info.window_pointer)
 	{
@@ -135,6 +155,7 @@ void* create_window_driver_x11(WindowDriverCreateInfo info, Arena *arena)
 	wd[0] = (X11WindowDriver){
 		.window = window,			
 		.display = display,
+		.cursor = cursor,
 		.user_pointer = user_pointer,
 		.fullscreen_atom = fullscreen_atom,
 		.state_atom = state_atom,
@@ -155,16 +176,90 @@ void destroy_window_driver_x11(void *driver_data)
 	X11WindowDriver *wd = driver_data;
 	
 	XDeleteContext(wd->display,wd->window, wd->user_pointer);
+	XFreeCursor(wd->display, wd->cursor);
 	XDestroyWindow(wd->display, wd->window);
 	XCloseDisplay(wd->display);
 			
 }
 
-
-
 void poll_window_driver_x11(void *driver_data, Event *event_ring_buffer)
 {
 	X11WindowDriver *wd = driver_data;
+
+	// Incoming Events
+	{
+		Event e = {0};
+		while(ring_buffer_pop(event_ring_buffer, &e))
+		{
+			switch(e.type)
+			{
+				case EVENT_SET_CURSOR:
+				{
+					u32 shape = 0;
+					switch(e.set_cursor.type)
+					{
+						case CURSOR_HAND:
+							shape = XC_hand1;
+						break;
+						case CURSOR_CROSS:
+							shape = XC_cross;
+						break;
+						case CURSOR_X11_GOBBLER:
+							shape = XC_gobbler;
+						break;
+						case CURSOR_X11_BOAT:
+							shape = XC_boat;
+						break;
+						case CURSOR_X11_GUMBY:
+							shape = XC_gumby;
+						break;
+						case CURSOR_FLEUR:
+							shape = XC_fleur;
+						break;
+						case CURSOR_CIRCLE:
+							shape = XC_circle;
+						break;
+						case CURSOR_POINTER:
+						default:
+							shape = XC_left_ptr;	
+						break;
+					}
+					{
+						XFreeCursor(wd->display, wd->cursor);
+						Cursor cursor = XCreateFontCursor(wd->display, shape);
+						wd->cursor = cursor;
+						fvec4 fgc = e.set_cursor.foreground_color;
+						fvec4 bgc = e.set_cursor.background_color;
+						XColor foreground = {
+							.red = (u16)(fgc.r * 65535.0),
+							.green = (u16)(fgc.g * 65535.0),
+							.blue = (u16)(fgc.b * 65535.0),
+							.flags = DoRed | DoGreen | DoBlue,
+						};
+						XColor background = {
+							.red = (u16)(bgc.r * 65535.0),
+							.green = (u16)(bgc.g * 65535.0),
+							.blue = (u16)(bgc.b * 65535.0),
+							.flags = DoRed | DoGreen | DoBlue,
+						};
+						XRecolorCursor(wd->display, wd->cursor, &foreground, &background);
+						XDefineCursor(wd->display, wd->window, wd->cursor);
+					}
+				}
+					
+					
+				break;
+				default:
+				break;
+			}
+		}
+	}
+
+
+
+
+
+	// Outgoing Events
 	while(XPending(wd->display) > 0)
 	{
 		XEvent xe = {0};

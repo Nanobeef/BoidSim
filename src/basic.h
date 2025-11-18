@@ -13,18 +13,6 @@
 
 
 
-typedef struct{
-}Global;
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -424,6 +412,37 @@ Barrier create_barrier(u32 count, Arena* arena);
 void destroy_barrier(Barrier barrier);
 b32 barrier_wait(Barrier barrier);
 
+typedef struct{
+
+	struct GlobalBoidParams{
+		Mutex mutex;
+		f32 seperation_range_norm;
+		f32 cohesion_range_norm;
+		f32 alignment_range_norm;
+		f32 seperation_strength_norm;
+		f32 cohesion_strength_norm;
+		f32 alignment_strength_norm;
+
+		f32 max_speed_norm;
+		f32 min_speed_norm;
+		f32 acceleration_norm;
+
+		f32 random_chance_norm;
+		f32 random_strength_norm;
+
+		f32 boid_count_norm;
+		f32 boid_size_norm;
+
+
+		b32 enable_attractor;
+		f32 attractor_range_norm;
+		f32 attractor_strength_snorm;
+		fvec2 attractor_position;
+
+
+
+	}boid;
+}Global;
 
 typedef struct{
 	Arena arena;

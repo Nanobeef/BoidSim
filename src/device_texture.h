@@ -1,7 +1,7 @@
 #pragma once
 
 #include "vk.h"
-#include "device_geometry.h"
+#include "geometry.h"
 
 typedef struct{
 	Device* device;

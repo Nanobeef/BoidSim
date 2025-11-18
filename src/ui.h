@@ -23,22 +23,28 @@ UI_Color ui_color_disable();
 
 struct UI_Element;
 typedef struct UI_ElementColorTheme{
+	UI_Color text;
 	UI_Color foreground;
 	UI_Color background;
 	UI_Color outline;
 	UI_Color hover_tint;
 	UI_Color states[2];
+
+
 	f32 corner_radius;
 	f32 outline_thickness;
+	f32 slider_width;
 }UI_ElementTheme;
 
 typedef struct{
 	struct UI_Element *root;
+	u64 time;
 	u32 frame_index;
 	u32 last_frame_index;
 	u64 frame_accum;
 	u32 max_element_count;
 	u32 element_counts[2];
+	b32 focused;
 	struct UI_Element *element_maps[2];	
 	Arena frame_arenas[2];
 	PRNG prng;
@@ -61,7 +67,6 @@ typedef struct{
 }UI;
 
 
-
 typedef enum{
 	UI_BUTTON_MONOSTABLE,
 	UI_BUTTON_ASTABLE,
@@ -73,11 +78,15 @@ typedef struct UI_ElementState{
 	b32 pressed;
 	f32 norm;	
 
+	b32 first_pressed;
+	b32 first_hovering;
+
+	fvec2 pressed_position;
+
 	b32 *hovering_ptr;
 	b32 *pressed_ptr;
 	f32 *norm_ptr;
 }UI_ElementState;
-
 
 typedef struct UI_Element{
 	UI_ElementType type;
@@ -88,6 +97,7 @@ typedef struct UI_Element{
 	UI *ui;
 
 	struct UI_Element *children_tail;
+	struct UI_Element *children;
 	struct UI_Element *peer;
 	struct UI_Element *parent;
 
@@ -104,6 +114,7 @@ typedef struct UI_Element{
 		struct UI_ElementButton{
 		}button;
 		struct UI_ElementSlider{
+			struct UI_Element *button;
 		}slider;
 	};
 }UI_Element;
@@ -112,4 +123,4 @@ typedef UI_Element UI_Box;
 typedef UI_Element UI_Button;
 typedef UI_Element UI_Slider;
 
-fmat3 ui_test(DeviceVertexBuffer *vb, const SimpleFont *simple_font, FrameEvents fe, uvec2 frame_size);
+UI *ui_test(DeviceVertexBuffer *vb, const SimpleFont *simple_font, FrameEvents fe, uvec2 frame_size);

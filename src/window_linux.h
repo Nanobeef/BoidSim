@@ -7,6 +7,7 @@
 #include <X11/Xresource.h>  // XContext
 #include <X11/extensions/XShm.h> 	// XShm
 #include <X11/extensions/Xpresent.h>  // XContext
+#include <X11/cursorfont.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 
@@ -14,6 +15,7 @@
 typedef struct{
     Window window;
     Display *display;
+	Cursor cursor;
 
     XContext user_pointer;
     Atom fullscreen_atom;

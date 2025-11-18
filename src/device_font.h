@@ -1,7 +1,7 @@
 #pragma once
 
 #include "vk.h"
-#include "device_geometry.h"
+#include "geometry.h"
 
 // Plain simple glyph atlas: ASCII (32 - 126) monospaced
 

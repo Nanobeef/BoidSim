@@ -95,5 +95,5 @@ void destroy_device_renderer(DeviceRenderer r);
 void resize_renderer_create(DeviceRenderer *r, uvec2 frame_size,Arena *resize_arena);
 void resize_renderer_destroy(DeviceRenderer *r);
 void cmd_device_renderer_blit(DeviceCommandBuffer cb, DeviceRenderer dr, u32 frame_index, DeviceImage2D dst);
-b32 poll_device_renderer(DeviceRenderer *dr, FrameEvents fe);
+b32 poll_device_renderer(DeviceRenderer *dr, FrameEvents fe, b32 move_world_camera);
 void recreate_device_renderer(DeviceRenderer *dr, u32 frame_count, uvec2 frame_size, Arena *resize_arena);

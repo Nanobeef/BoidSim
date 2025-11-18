@@ -2,7 +2,6 @@
 
 #include "camera2.h"
 #include "device_vertex_buffer.h"
-#include "device_geometry.h"
 #include "device_font.h"
 
 // MISC GRAPHICS

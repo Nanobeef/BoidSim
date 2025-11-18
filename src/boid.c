@@ -24,13 +24,11 @@ void boid_sim_next_frame(BoidSim *sim)
 	sim->next_velocities = sim->frame_velocities[sim->next_frame_index];
 }
 
-
-
 void* boid_sim_thread(Thread *thread);
 BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_count, Arena *arena)
 {
 	max_thread_count = 32;
-	max_boid_count = 1024 * 128;
+	max_boid_count = 1024 * 64;
 	u32 boid_count_limit = 512 * 1024 * 1024 - 1024;
 	max_boid_count = (max_boid_count & (~1023u));
 
@@ -132,6 +130,19 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 		.group_count = 2,
 	};
 
+	{
+		struct GlobalBoidParams *bp = &MAIN_THREAD->global.boid;
+
+		bp->cohesion_range_norm = 0.5;
+		bp->seperation_range_norm = 0.5;
+		bp->alignment_range_norm = 1.0;
+
+		bp->cohesion_strength_norm = 0.4;
+		bp->seperation_strength_norm = 0.4;
+		bp->alignment_strength_norm = 0.3;
+		bp->boid_size_norm = 0.1;
+	}
+
 	for(u32 i = 0; i < BOID_SIM_FRAME_COUNT; i++)
 	{
 		u64 position_device_buffer_size = max_boid_count * (sizeof(uvec2));
@@ -227,6 +238,7 @@ void draw_boid_sim_overlay(DeviceVertexBuffer *vb, Camera2 camera, SimpleFont si
 
 	Temp temp = begin_temp(0);
 
+	fvec4 text_color = fvec4_make(0.1, 0.8, 0.1, 1.0);
 
 
 
@@ -244,42 +256,42 @@ void draw_boid_sim_overlay(DeviceVertexBuffer *vb, Camera2 camera, SimpleFont si
 	sim->elapsed_time / 1000, 
 	sim->stage_times[sp.stage] / 1000
 	).str;
-	pos = gdraw_simple_text_box(vb, simple_font, str, fvec4_make(0.1, 0.8, 0.1, 1.0), pos_a, pos_b, pos, unit_pixel * 24);
+	pos = gdraw_simple_text_box(vb, simple_font, str, text_color, pos_a, pos_b, pos, unit_pixel * 24);
 
 	sp = sim->stage_params[BOID_SIM_STAGE_ALLOCATE];
 	str = string_print(temp.arena,
 	" Alloc:     %u64 us\n",
 	sim->stage_times[sp.stage] / 1000
 	).str;
-	pos = gdraw_simple_text_box(vb, simple_font, str, fvec4_make(0.1, 0.8, 0.1, 1.0), pos_a, pos_b, pos, unit_pixel * 24);
+	pos = gdraw_simple_text_box(vb, simple_font, str, text_color, pos_a, pos_b, pos, unit_pixel * 24);
 
 	sp = sim->stage_params[BOID_SIM_STAGE_FILL];
 	str = string_print(temp.arena,
 	" Fill:      %u64 us\n",
 	sim->stage_times[sp.stage] / 1000
 	).str;
-	pos = gdraw_simple_text_box(vb, simple_font, str, fvec4_make(0.1, 0.8, 0.1, 1.0), pos_a, pos_b, pos, unit_pixel * 24);
+	pos = gdraw_simple_text_box(vb, simple_font, str, text_color, pos_a, pos_b, pos, unit_pixel * 24);
 
 	sp = sim->stage_params[BOID_SIM_STAGE_CONSTRUCT];
 	str = string_print(temp.arena,
 	" Construct: %u64 us\n",
 	sim->stage_times[sp.stage] / 1000
 	).str;
-	pos = gdraw_simple_text_box(vb, simple_font, str, fvec4_make(0.1, 0.8, 0.1, 1.0), pos_a, pos_b, pos, unit_pixel * 24);
+	pos = gdraw_simple_text_box(vb, simple_font, str, text_color, pos_a, pos_b, pos, unit_pixel * 24);
 
 	sp = sim->stage_params[BOID_SIM_STAGE_RESOLVE];
 	str = string_print(temp.arena,
 	" Resolve:   %u64 us\n",
 	sim->stage_times[sp.stage] / 1000
 	).str;
-	pos = gdraw_simple_text_box(vb, simple_font, str, fvec4_make(0.1, 0.8, 0.1, 1.0), pos_a, pos_b, pos, unit_pixel * 24);
+	pos = gdraw_simple_text_box(vb, simple_font, str, text_color, pos_a, pos_b, pos, unit_pixel * 24);
 
 	sp = sim->stage_params[BOID_SIM_STAGE_RESET];
 	str = string_print(temp.arena,
 	" Reset:     %u64 us\n",
 	sim->stage_times[sp.stage] / 1000
 	).str;
-	pos = gdraw_simple_text_box(vb, simple_font, str, fvec4_make(0.1, 0.8, 0.1, 1.0), pos_a, pos_b, pos, unit_pixel * 24);
+	pos = gdraw_simple_text_box(vb, simple_font, str, text_color, pos_a, pos_b, pos, unit_pixel * 24);
 
 	end_temp(temp);
 }
@@ -419,8 +431,9 @@ void boid_sim_reset(BoidSimParams *p)
 		}
 		for(u32 i = task.index; i < task.count + task.index; i++)
 		{
-			vel[i].x >>= 0;
-			vel[i].y >>= 0;
+			const u32 rsh = 16;
+			vel[i].x >>= rsh;
+			vel[i].y >>= rsh;
 		}
 		continue;
 
@@ -699,9 +712,20 @@ void boid_sim_resolve(BoidSimParams *p)
 	BoidSim *sim = p->sim;
 	Task task;
 
-	u32 seperation_range = 1<<23;
-	u32 cohesion_range = 1<<23;
-	u32 alignment_range = 1<<24;
+	
+	f32 pw = 3.0;
+	f32 seperation_strength = powf(sim->global.alignment_strength_norm, pw);
+	f32 cohesion_strength = powf(sim->global.cohesion_strength_norm, pw);
+	f32 alignment_strength = powf(sim->global.alignment_strength_norm, pw);
+	
+	u32 seperation_range = (u32)(powf(sim->global.seperation_range_norm,pw) * (f32)(1<<24));
+	u32 cohesion_range = (u32)(powf(sim->global.cohesion_range_norm,pw) * (f32)(1<<24));
+	u32 alignment_range = (u32)(powf(sim->global.alignment_range_norm,pw) * (f32)(1<<24));
+
+	f32 min_speed = powf(sim->global.min_speed_norm,pw) * 0.01;
+	f32 max_speed = powf(sim->global.max_speed_norm,pw) * 0.01;
+	f32 acceleration = powf(sim->global.acceleration_norm,pw) * 0.1;
+
 
 	PRNG rg = init_prng(get_time_ms());
 
@@ -718,8 +742,6 @@ void boid_sim_resolve(BoidSimParams *p)
 				uvec2 upos = boid_sim_fvec2_to_uvec2(pos);
 				svec2 svel = boid_sim_fvec2_to_svec2(vel);
 
-
-
 				if(1)
 				{
 					fvec2 average;
@@ -727,7 +749,7 @@ void boid_sim_resolve(BoidSimParams *p)
 					if(count)
 					{
 						average = fvec2_sub(pos, average);
-						average = fvec2_scalar_mul(average, 10.0);
+						average = fvec2_scalar_mul(average, seperation_strength);
 						vel = fvec2_add(vel, average);
 					}
 				}
@@ -738,7 +760,7 @@ void boid_sim_resolve(BoidSimParams *p)
 					if(count)
 					{
 						average = fvec2_sub(pos, average);
-						average = fvec2_scalar_mul(average, 0.6);
+						average = fvec2_scalar_mul(average, cohesion_strength);
 						vel = fvec2_sub(vel, average);
 					}
 				}
@@ -748,19 +770,18 @@ void boid_sim_resolve(BoidSimParams *p)
 					u32 count = boid_sim_search_average(p, upos, pos, vel, alignment_range, 0, &average);
 					if(count)
 					{
-						vel = fvec2_lerp(vel, average, 0.9);
+						vel = fvec2_lerp(vel, average, alignment_strength);
 					}
 				}
 
-
 				f32 speed = fvec2_magnitude(vel);
-				if(speed > 0.005)
+				if(speed > max_speed)
 				{
-					vel = fvec2_scalar_mul(vel, 0.9);
+					vel = fvec2_scalar_mul(vel, 1.0-acceleration);
 				}
-				if(speed < 0.003)
+				if(speed < min_speed)
 				{
-					vel = fvec2_scalar_mul(vel, 1.1);
+					vel = fvec2_scalar_mul(vel, 1.0+acceleration);
 				}
 				
 
@@ -771,7 +792,6 @@ void boid_sim_resolve(BoidSimParams *p)
 				{
 					upos.x += svel.x;
 					upos.y += svel.y;
-
 				}
 
 			// Write
@@ -796,7 +816,6 @@ void* boid_sim_thread(Thread *thread)
 		b32 is_first_thread = barrier_wait(sim->all_barriers[atomic_load(&sim->thread_count)-1]);
 		if(is_first_thread)
 		{
-
 			BoidSimStage last_stage = atomic_load(&sim->stage);
 			BoidSimStage stage = last_stage + 1;
 			b32 should_reset = false;
@@ -856,6 +875,8 @@ void* boid_sim_thread(Thread *thread)
 			cond_wait(sim->cond, sim->mutex);
 			mutex_unlock(sim->mutex);
 		}
+
+		sim->global = MAIN_THREAD->global.boid;
 
 		is_first_thread = barrier_wait(sim->all_barriers[atomic_load(&sim->thread_count)-1]);
 

@@ -119,9 +119,11 @@ Button set_button(Button button, u64 time, b32 pressed)
 FrameEvents resolve_frame_events(FrameEvents last, Event *event_ring_buffer, Arena* frame_arena)
 {
 	FrameEvents fe = last;
+	fe.event_ring_buffer = event_ring_buffer;
 	fe.mouse_scroll = 0;
 	fe.mouse_dx = 0;
 	fe.mouse_dy = 0;
+	fe.mouse_moved = false;
 	fe.window_resized = false;
 	fe.dt = get_time_ns() - fe.time;
 	fe.time = get_time_ns();
@@ -238,11 +240,11 @@ FrameEvents resolve_frame_events(FrameEvents last, Event *event_ring_buffer, Are
 					case MOUSE_MOVE:
 					{
 						fe.mouse_move_time = fe.time;
+						fe.mouse_moved = true;
 						if(fe.mouse_x || fe.mouse_y)
 						{
 							fe.mouse_dx += e.mouse.x - fe.mouse_x;
 							fe.mouse_dy += e.mouse.y - fe.mouse_y;
-
 						}
 						fe.mouse_x = e.mouse.x;
 						fe.mouse_y = e.mouse.y;

@@ -830,7 +830,7 @@ void recreate_device_renderer(DeviceRenderer *dr, u32 frame_count, uvec2 frame_s
 	}
 }
 
-b32 poll_device_renderer(DeviceRenderer *dr, FrameEvents fe)
+b32 poll_device_renderer(DeviceRenderer *dr, FrameEvents fe, b32 move_world_camera)
 {
 
 // Update camera
@@ -850,7 +850,7 @@ b32 poll_device_renderer(DeviceRenderer *dr, FrameEvents fe)
 			dr->blit_camera = make_camera2(dr->frame_size);
 			dr->blit_camera_active = false;
 		}
-		dr->world_camera = update_camera2(dr->world_camera,fe,true);
+		dr->world_camera = update_camera2(dr->world_camera,fe,move_world_camera);
 	}
 	dr->overlay_camera = update_camera2(dr->overlay_camera,fe,false);
 

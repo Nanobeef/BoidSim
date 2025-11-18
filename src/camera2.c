@@ -85,14 +85,14 @@ Camera2 resize_camera2(Camera2 camera, uvec2 frame_size)
 	return camera;
 }
 
-Camera2 update_camera2(Camera2 camera, FrameEvents fe, b32 pan_and_zoom)
+Camera2 update_camera2(Camera2 camera, FrameEvents fe, b32 should_poll)
 {
 	camera.pixel_mouse = fvec2_make(fe.mouse_x, fe.mouse_y);
 	if(fe.w.pressed == true)
 	{
 		camera.dst_pan.y += 0.01;
 	}
-	if(pan_and_zoom == false)
+	if(should_poll == false)
 	{
 		camera = compute_camera2(camera);
 		return camera;

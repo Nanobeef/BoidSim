@@ -8,6 +8,7 @@ typedef enum{
 	EVENT_PROCESS,
 	EVENT_KEYBOARD,
 	EVENT_MOUSE,
+	EVENT_SET_CURSOR,
 }EventTypeFlags;
 typedef u32 EventType;
 
@@ -128,13 +129,31 @@ typedef struct{
 	KeyType key;
 }KeyboardEvent;
 
+typedef enum{
+	CURSOR_POINTER = 0,
+	CURSOR_HAND,
+	CURSOR_X11_GOBBLER,
+	CURSOR_X11_GUMBY,
+	CURSOR_X11_BOAT,
+	CURSOR_FLEUR,
+	CURSOR_CIRCLE,
+	CURSOR_CROSS,
+}CursorTypeFlags;
+typedef u32 CursorType;
+
+typedef struct{
+	CursorType type;	
+	fvec4 background_color;
+	fvec4 foreground_color;
+}CursorSetEvent;
+
 typedef struct{
 	EventType type;	
 	union{
 		WindowEvent	window;
 		KeyboardEvent keyboard;
 		MouseEvent mouse;
-
+		CursorSetEvent set_cursor;
 	};
 	void *window_pointer;
 	u64 time;
@@ -143,7 +162,6 @@ typedef struct{
 
 Event init_event();
 void post_event(Event *event_ring_buffer, Event event);
-b32 next_event(Event *event_ring_buffer, Event *event);
 void print_event(Event event);
 
 typedef struct{
@@ -167,6 +185,7 @@ typedef struct{
 	b32 window_moved;
 
 	s32 mouse_scroll;
+	b32 mouse_moved;
 
 	Button first_button;
 
@@ -187,6 +206,8 @@ typedef struct{
 
 	u64 dt;
 	u64 time;
+
+	Event *event_ring_buffer;
 }FrameEvents;
 
 

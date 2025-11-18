@@ -1,5 +1,5 @@
 #include "device_vertex_buffer.h"
-#include "device_geometry.h"
+#include "geometry.h"
 
 
 DeviceVertexBufferLink* allocate_vertex_buffer_link(DeviceArena* device_arena, u64 size, u32 vertex_stride, Arena* arena)

@@ -1,4 +1,4 @@
-#include "device_geometry.h"
+#include "geometry.h"
 
 
 b32 point_vs_rectangle(fvec2 pos, fvec2 a, fvec2 b)

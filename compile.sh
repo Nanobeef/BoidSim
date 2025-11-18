@@ -136,8 +136,6 @@ get_time_us(){
 	echo $(( (10#$sec * 1000000) + (10#$nano / 1000) ))
 }
 
-TIME=$(get_time_us)
-START_TIME=TIME
 
 
 # Build Variables
@@ -269,7 +267,7 @@ link_stage(){
 
 	if [ $needs_to_link -eq 1 ] || [ ! -f "$target_binary" ]; 
 	then
-		not_to_date_print $target_binary
+		not_to_date_print "${IGreen}"$target_binary
 		$linker $lflags $OFILES -o $target_binary
 	else
 		 up_to_date_print "$target_binary"
@@ -283,9 +281,21 @@ time_next(){
 	TIME=$(get_time_us)
 	section_print "$1"
 }
+time_first(){
+	TIME=$(get_time_us)
+	START_TIME=$TIME
+}
+
+time_last(){
+	TIME=$(($(get_time_us)-$START_TIME))
+	section_print "$1"
+	time_print "$((TIME / 1000)) ms"
+}
 
 run_single_build(){
 	
+	
+	time_first 
 	section_print "Compiling Shaders:"
 		shader_stage
 	time_next "Embedding Files:"
@@ -294,7 +304,7 @@ run_single_build(){
 		compile_stage
 	time_next "Linking:"
 		link_stage
-	time_next "Done"
+	time_last "Done"
 }
 
 reset_build(){
@@ -324,8 +334,6 @@ fi
 
 
 
-TIME=$(($(get_time_us)-START_TIME))
-time_print " $(((TIME) / 1000)) ms"
 
 
 
