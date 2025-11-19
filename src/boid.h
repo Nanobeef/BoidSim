@@ -171,6 +171,20 @@ void cmd_draw_boid_sim_boids(DeviceCommandBuffer cb, BoidSim *sim);
 void draw_boid_sim_overlay(DeviceVertexBuffer *vb, Camera2 camera, SimpleFont simple_font, BoidSim *sim);
 void draw_boid_sim_grid(DeviceVertexBuffer *vb, Camera2 camera, SimpleFont simple_font, BoidSim *sim);
 
+fvec2 boid_sim_uvec2_to_fvec2(uvec2 u);
+fvec2 boid_sim_svec2_to_fvec2(svec2 s);
+uvec2 boid_sim_fvec2_to_uvec2(fvec2 f);
+svec2 boid_sim_fvec2_to_svec2(fvec2 f);
+
+typedef struct{
+	u32 index;	
+	u32 count;
+	b32 has_work;
+}Task;
+
+ThreadGroup* enter_thread_group(BoidSimParams *p, b32 is_group_local_task);
+Task reserve_boid_sim_task(BoidSimParams *p, ThreadGroup *group);
+
 /*
 
 ======== Boids ==========

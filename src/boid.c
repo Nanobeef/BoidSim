@@ -28,7 +28,7 @@ void* boid_sim_thread(Thread *thread);
 BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_count, Arena *arena)
 {
 	max_thread_count = 32;
-	max_boid_count = 1024 * 64;
+	max_boid_count = 1024 * 1024;
 	u32 boid_count_limit = 512 * 1024 * 1024 - 1024;
 	max_boid_count = (max_boid_count & (~1023u));
 
@@ -333,11 +333,6 @@ void draw_boid_sim_grid(DeviceVertexBuffer *vb, Camera2 camera, SimpleFont simpl
 	barrier_wait(sim->host_barrier_for_two);
 }
 
-typedef struct{
-	u32 index;	
-	u32 count;
-	b32 has_work;
-}Task;
 
 ThreadGroup* enter_thread_group(BoidSimParams *p, b32 is_group_local_task)
 {
