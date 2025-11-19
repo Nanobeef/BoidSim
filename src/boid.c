@@ -28,7 +28,7 @@ void* boid_sim_thread(Thread *thread);
 BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_count, Arena *arena)
 {
 	max_thread_count = 32;
-	max_boid_count = 1024 * 1024;
+	max_boid_count = 1024 * 1024 * 2;
 	u32 boid_count_limit = 512 * 1024 * 1024 - 1024;
 	max_boid_count = (max_boid_count & (~1023u));
 
@@ -134,8 +134,8 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 		struct GlobalBoidParams *bp = &MAIN_THREAD->global.boid;
 
 		bp->cohesion_range_norm = 0.1;
-		bp->seperation_range_norm = 0.7;
-		bp->alignment_range_norm = 1.0;
+		bp->seperation_range_norm = 0.4;
+		bp->alignment_range_norm = 0.4;
 
 		bp->cohesion_strength_norm = 0.9;
 		bp->seperation_strength_norm = 0.9;
@@ -145,7 +145,11 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 		bp->min_speed_norm = 0.2;
 		bp->max_speed_norm = 0.4;
 		bp->acceleration_norm = 0.5;
+
+		bp->attractor_range_norm = 0.7;
+		bp->attractor_strength_snorm = 0.5;
 	}
+
 
 	for(u32 i = 0; i < BOID_SIM_FRAME_COUNT; i++)
 	{
@@ -713,7 +717,7 @@ void boid_sim_resolve(BoidSimParams *p)
 
 	
 	f32 pw = 2;
-	f32 seperation_strength = powf(sim->global.alignment_strength_norm, pw);
+	f32 seperation_strength = powf(sim->global.seperation_strength_norm, pw);
 	f32 cohesion_strength = powf(sim->global.cohesion_strength_norm, pw);
 	f32 alignment_strength = powf(sim->global.alignment_strength_norm, pw);
 	
@@ -724,6 +728,13 @@ void boid_sim_resolve(BoidSimParams *p)
 	f32 min_speed = powf(sim->global.min_speed_norm,pw) * 0.01;
 	f32 max_speed = powf(sim->global.max_speed_norm,pw) * 0.01;
 	f32 acceleration = powf(sim->global.acceleration_norm,pw) * 0.1;
+
+	u32 attractor_range = (u32)(powf(sim->global.attractor_range_norm * 3.0, 4.0) * (f32)(1<<24));
+	f32 attractor_strength = powf(sim->global.attractor_strength_snorm, pw);
+	b32 attractor_enable = sim->global.attractor_enable;
+	fvec2 attractor_position = sim->global.attractor_position;
+	f32 attractor_distance = (f32)attractor_range / (f32)U32_MAX;
+
 
 
 	PRNG rg = init_prng(get_time_ms());
@@ -783,6 +794,16 @@ void boid_sim_resolve(BoidSimParams *p)
 					vel = fvec2_scalar_mul(vel, 1.0+acceleration);
 				}
 				
+				if(attractor_enable)
+				{
+					while(fvec2_distance(pos, attractor_position) < attractor_distance)
+					{
+						fvec2 dir = fvec2_unit(fvec2_sub(attractor_position, pos));	
+						u64 rand = random_u64(&rg);
+						memcpy(&upos, &rand, 8);
+						pos = boid_sim_uvec2_to_fvec2(upos);
+					}
+				}
 
 
 				svel = boid_sim_fvec2_to_svec2(vel);

@@ -432,13 +432,10 @@ typedef struct{
 		f32 boid_count_norm;
 		f32 boid_size_norm;
 
-
-		b32 enable_attractor;
+		b32 attractor_enable;
 		f32 attractor_range_norm;
 		f32 attractor_strength_snorm;
 		fvec2 attractor_position;
-
-
 
 	}boid;
 }Global;

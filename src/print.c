@@ -1,6 +1,7 @@
 #include "print.h"
 #include "basic.h"
 #include <math.h>
+#include <simde/x86/avx512.h>
 
 // Most bounds cheks have been removed, just going to have checks for printing array types.
 
@@ -22,6 +23,9 @@ const Keyword keywords[] = { // Sort manually for now.
 
 	init_keyword("f16", TYPE_F16),
 	init_keyword("f32", TYPE_F32),
+//	init_keyword("f32x16", TYPE_F32X16_VECTOR),
+//	init_keyword("f32x4", TYPE_F32X4_VECTOR),
+//	init_keyword("f32x8", TYPE_F32X8_VECTOR),
 	init_keyword("f64", TYPE_F64),
 
 	init_keyword("fmat2", TYPE_F32MAT2),
@@ -297,7 +301,7 @@ void handle_scalar_keyword(Print *p, Type type, const void *data)
 
 		case TYPE_F16:
 		{
-			f64 n = *(f16*)data;
+			f64 n = *(f32*)data;
 			p->out = float_to_string(n, p->left_precision, p->right_precision, p->out, p->end);
 		}break;
 		case TYPE_F32:
@@ -353,6 +357,45 @@ u64 type_stride(Type type)
 	}
 }
 
+const char* type_name(Type type)
+{
+	switch(type)
+	{
+		case TYPE_U8:
+			return "u8";
+		case TYPE_V8:
+			return "v8";
+		case TYPE_S8:
+			return "s8";
+		case TYPE_U16:
+			return "u16";
+		case TYPE_V16:
+			return "v16";
+		case TYPE_S16:
+			return "s16";
+		case TYPE_F16:
+			return "f16";
+		case TYPE_U32:
+			return "u32";
+		case TYPE_V32:
+			return "v32";
+		case TYPE_S32:
+			return "s32";
+		case TYPE_F32:
+			return "f32";
+		case TYPE_U64:
+			return "u64";
+		case TYPE_V64:
+			return "v64";
+		case TYPE_S64:
+			return "s64";
+		case TYPE_F64:
+			return "f64";
+		default:
+			return "void";
+	}
+}
+
 void handle_vector_keyword(Print *p, Type scalar_type, u32 count, const void* data)
 {
 	*p->out++ = '(';
@@ -384,6 +427,27 @@ void handle_matrix_keyword(Print *p, Type scalar_type, u32 x_count, u32 y_count,
 	p->out--;
 	*p->out++ = '.';
 	*p->out++ = '\n';
+}
+
+void handle_simd_vector_keyword(Print *p, Type scalar_type, u32 count, const void* data)
+{
+	const char *name = type_name(scalar_type);
+
+	*p->out++ = '[';
+	p->out = cstring_to_string(name, p->out, p->end);
+	*p->out++ = 'x';
+	p->out = uint_to_string(count, p->out, p->end);
+	*p->out++ = ']';
+	*p->out++ = '(';
+
+	for(u32 i = 0; i < count; i++)
+	{
+		handle_scalar_keyword(p, scalar_type, (u8*)data + type_stride(scalar_type) * i);
+		*p->out++ = ',';
+		*p->out++ = ' ';
+	}
+	p->out -= 2;
+	*p->out++ = ')';
 }
 
 void handle_array_keyword(Print *p, Type scalar_type, u32 count, const void *data)
@@ -512,12 +576,12 @@ void handle_keyword(Print *p, va_list l)
 
 		case TYPE_F16:
 		{
-			f64 n = (f64)va_arg(l, f64);
+			f16 n = (f64)va_arg(l, f64);
 			handle_scalar_keyword(p, p->type, &n);
 		}break;
 		case TYPE_F32:
 		{
-			f64 n = (f64)va_arg(l, f64);
+			f32 n = (f64)va_arg(l, f64);
 			handle_scalar_keyword(p, p->type, &n);
 		}break;
 		case TYPE_F64:
@@ -577,6 +641,28 @@ void handle_keyword(Print *p, va_list l)
 		{
 			fmat4 m = va_arg(l, fmat4);
 			handle_matrix_keyword(p, TYPE_F32, 4,4, &m);
+		}break;
+		case TYPE_F32X16_VECTOR:
+		{
+			simde__m512	v = va_arg(l, simde__m512);
+			align(64) f32 s[16];
+			simde_mm512_store_ps(s, v);
+			handle_simd_vector_keyword(p, TYPE_F32, 16, s);
+
+		}break;
+		case TYPE_F32X8_VECTOR:
+		{
+			simde__m256	v = va_arg(l, simde__m256);
+			align(64) f32 s[8];
+			simde_mm256_store_ps(s, v);
+			handle_simd_vector_keyword(p, TYPE_F32, 8, s);
+		}break;
+		case TYPE_F32X4_VECTOR:
+		{
+			simde__m128	v = va_arg(l, simde__m128);
+			align(64) f32 s[4];
+			simde_mm_store_ps(s, v);
+			handle_simd_vector_keyword(p, TYPE_F32, 4, s);
 		}break;
 
 		default:

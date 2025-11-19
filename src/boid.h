@@ -164,6 +164,7 @@ typedef union BoidSimParams{
 	u8 minimum_size[64];
 }BoidSimParams align(64);
 
+void boid_sim_resolve_test();
 BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_count, Arena *arena);
 void destroy_boid_sim(BoidSim *sim);
 void reset_boid_sim(BoidSim *sim);

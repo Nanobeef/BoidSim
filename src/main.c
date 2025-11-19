@@ -18,6 +18,9 @@ s32 main()
 	main_init(GB * 64lu);
 
 
+	boid_sim_resolve_test();
+
+
 	const u32 frame_count = 2;
 	const u32 resize_count = 2;
 	u32 frame_index = 0;
@@ -78,6 +81,23 @@ s32 main()
 		{
 			reset_boid_sim(boid_sim);
 		}
+		if(fe.mouse_right.pressed)
+		{
+			THREAD->global.boid.attractor_position = 
+				fvec2_add(
+					camera2_pixel_to_world(
+						dr.world_camera, 
+						fvec2_make(fe.mouse_x, fe.mouse_y)
+					),
+					fvec2_make(0.5, 0.5)
+				);
+			THREAD->global.boid.attractor_enable = true;
+		}
+		else
+		{
+			THREAD->global.boid.attractor_enable = false;
+		}
+
 
 		b32 should_recreate_renderer = poll_device_renderer(&dr, fe, move_world_camera);
 

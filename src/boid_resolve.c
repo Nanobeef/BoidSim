@@ -2,6 +2,20 @@
 #include <simde/x86/avx512.h>
 #include "device_graphics.h"
 
+/*
+__m512 _mm512_mask_compress_ps (__m512 src, __mmask16 k, __m512 a);
+__m512 _mm512_maskz_compress_ps (__mmask16 k, __m512 a);
+
+void _mm512_mask_compressstoreu_ps (void* base_addr, __mmask16 k, __m512 a);
+
+int _mm_popcnt_u32 (unsigned int a);
+
+*/
+
+void boid_sim_resolve_test()
+{
+}
+
 u32 boid_sim_search_average2(BoidSimParams *p, uvec2 upos, fvec2 orig_pos, fvec2 orig_vel, u32 range, fvec2 *restrict out_pos, fvec2 *restrict out_vel)
 {
 	BoidSim *sim = p->sim;

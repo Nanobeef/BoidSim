@@ -743,8 +743,8 @@ UI *ui_test(DeviceVertexBuffer *vb, const SimpleFont *simple_font, FrameEvents f
 		misc_sliders[0]->state.norm_ptr = &bp->boid_size_norm;
 		misc_sliders[1]->text = str8_lit("Boid Count");
 		misc_sliders[1]->state.norm_ptr = &bp->boid_count_norm;
-		misc_sliders[2]->text = str8_lit("...");
-		misc_sliders[2]->state.norm_ptr = &bp->boid_size_norm;
+		misc_sliders[2]->text = str8_lit("Pen Range");
+		misc_sliders[2]->state.norm_ptr = &bp->attractor_range_norm;
 
 		ui_poll(ui);
 		ui_draw(ui);
