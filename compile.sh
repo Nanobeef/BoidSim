@@ -323,6 +323,7 @@ reset_build(){
 
 if [ "$output_mode" = "all" ]; then
 	reset_build
+	cflags_release=$cflags_final_release
 	target_binary="$target_name-x86_64"
 	cflags_machine="-march=x86-64"
 	run_single_build
