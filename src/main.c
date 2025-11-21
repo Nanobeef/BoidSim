@@ -140,7 +140,7 @@ s32 main()
 					.color = fvec4_scalar_div(fvec4_make(255.0, 253.0, 208.0, 255.0) , 255.0),
 					.time = get_time_ms(),
 					.index = dr.debug_index,
-					.scale = boid_sim->global.boid_size_norm,
+					.scale = THREAD->global.boid.boid_size_norm,
 				};
 				vkCmdPushConstants(cb.handle, dr.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(DeviceRendererPushRange), &push_range);
 			}
@@ -168,8 +168,6 @@ s32 main()
 				vkCmdBindPipeline(cb.handle, VK_PIPELINE_BIND_POINT_GRAPHICS, vertex2_pipeline);
 				cmd_draw_vertex_buffer(cb, vb);
 			}
-
-
 			{
 				DeviceRendererPushRange push_range = {
 					.affine = fmat3_padding(dr.overlay_camera.affine),
