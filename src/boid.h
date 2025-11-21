@@ -95,7 +95,9 @@ typedef struct{
 	atomic b32 should_draw;
 
 	atomic u32 boid_count;
+	atomic u32 draw_count;
 	atomic u32 thread_count;
+	atomic u32 boid_sim_mod;
 	atomic u32 thread_group_count;
 	atomic u32 requested_thread_count;
 	atomic BoidSimStage stage;

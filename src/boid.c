@@ -27,11 +27,23 @@ void boid_sim_next_frame(BoidSim *sim)
 void* boid_sim_thread(Thread *thread);
 BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_count, Arena *arena)
 {
-	max_thread_count = 32;
-	max_boid_count = 1024 * 512;
+	max_thread_count = THREAD_COUNT;
+	if(max_thread_count >= 32)
+	{
+		max_thread_count = 32;	
+	}
+	else
+	{
+		max_thread_count = 16;	
+	}
+
+	u32 boid_sim_mod = 1024 * max_thread_count;
+
+	max_boid_count = 1024 * 1024 * 4;
+
+	max_boid_count = forward_align_uint(max_boid_count, boid_sim_mod);
 
 	u32 boid_count_limit = 512 * 1024 * 1024 - 1024;
-	max_boid_count = (max_boid_count & (~1023u));
 
 	if(max_boid_count >= boid_count_limit)
 	{
@@ -46,6 +58,8 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 	*sim = (BoidSim){
 		.max_boid_count = max_boid_count,
 		.boid_count = max_boid_count,
+		.draw_count = max_boid_count,
+		.boid_sim_mod = boid_sim_mod,
 		.loop_time = loop_time_init(0),
 
 		.cond = create_cond(arena),
@@ -87,55 +101,55 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 		.stage = BOID_SIM_STAGE_COUNT,
 		.task_size = 1024,		
 		.task_max_count = sim->boid_count,
-		.thread_count =  32,
+		.thread_count =  max_thread_count,
 		.group_size = 16,
-		.group_count = 2,
+		.group_count = max_thread_count / 16,
 	};
 
 	sim->stage_params[BOID_SIM_STAGE_ALLOCATE] = (BoidSimStageParams) {
 		.stage = BOID_SIM_STAGE_ALLOCATE,
 		.task_size = 1024,		
 		.task_max_count = sim->boid_count,
-		.thread_count =  32,
+		.thread_count =  max_thread_count,
 		.group_size = 16,
-		.group_count = 2,
+		.group_count = max_thread_count / 16,
 	};
 	sim->stage_params[BOID_SIM_STAGE_FILL] = (BoidSimStageParams) {
 		.stage = BOID_SIM_STAGE_FILL,
 		.task_size = 1024,		
 		.task_max_count = sim->boid_count,
-		.thread_count =  32,
+		.thread_count =  max_thread_count,
 		.group_size = 16,
-		.group_count = 2,
+		.group_count = max_thread_count / 16,
 	};
 	sim->stage_params[BOID_SIM_STAGE_CONSTRUCT] = (BoidSimStageParams) {
 		.stage = BOID_SIM_STAGE_CONSTRUCT,
 		.task_size = 64,		
 		.task_max_count = sim->cells_count,
-		.thread_count =  32,
+		.thread_count =  max_thread_count,
 		.group_size = 16,
-		.group_count = 2,
+		.group_count = max_thread_count / 16,
 	};
 	sim->stage_params[BOID_SIM_STAGE_RESOLVE] = (BoidSimStageParams) {
 		.stage = BOID_SIM_STAGE_RESOLVE,
 		.task_size = 8,		
 		.task_max_count = sim->cells_count,
-		.thread_count =  32,
+		.thread_count =  max_thread_count,
 		.group_size = 16,
-		.group_count = 2,
+		.group_count = max_thread_count / 16,
 	};
 	sim->stage_params[BOID_SIM_STAGE_RESET] = (BoidSimStageParams) {
 		.stage = BOID_SIM_STAGE_RESET,
 		.task_size = 1024,		
 		.task_max_count = sim->boid_count,
-		.thread_count =  32,
+		.thread_count =  max_thread_count,
 		.group_size = 16,
-		.group_count = 2,
+		.group_count = max_thread_count / 16,
 	};
 
 	{
 		struct GlobalBoidParams *bp = &MAIN_THREAD->global.boid;
-		bp->boid_count_uint = max_boid_count;
+		bp->boid_count_uint = sim->boid_count;
 
 		bp->seperation_range_norm = 0.5;
 		bp->cohesion_range_norm = 0.3;
@@ -146,6 +160,7 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 		bp->alignment_strength_norm = 0.7;
 
 
+		bp->randomness_norm = 0.1;
 		bp->boid_size_norm = 0.5;
 		bp->min_speed_norm = 0.2;
 		bp->max_speed_norm = 0.4;
@@ -239,7 +254,7 @@ void cmd_draw_boid_sim_boids(DeviceCommandBuffer cb, BoidSim *sim)
 	VkBuffer buffers[] = {sim->position_device_buffers[sim->frame_index].handle, sim->velocity_device_buffers[sim->frame_index].handle};
 	u64 offsets[] = {0, 0};
 	vkCmdBindVertexBuffers(cb.handle, 0,2,buffers,offsets);
-	u32 boid_count = atomic_load(&sim->boid_count);
+	u32 boid_count = atomic_load(&sim->draw_count);
 	vkCmdDraw(cb.handle, 3, boid_count,0,0);
 }
 
@@ -315,6 +330,7 @@ void draw_boid_sim_grid(DeviceVertexBuffer *vb, Camera2 camera, SimpleFont simpl
 	barrier_wait(sim->host_barrier_for_two);
 	fvec2 a = fvec2_make(-0.5, -0.5);
 	fvec2 b = fvec2_make(0.5, 0.5);
+	Temp temp = begin_temp(0);
 	for(u32 y = 0; y < sim->cells_height; y++)
 	{
 		for(u32 x = 0; x < sim->cells_width; x++)
@@ -335,9 +351,12 @@ void draw_boid_sim_grid(DeviceVertexBuffer *vb, Camera2 camera, SimpleFont simpl
 			 	cc = 0.0;
 			}
 			gdraw_rectangle(vb, aa, bb, fvec4_make(cc+0.02, 0.02, 0.02, 0.1));
+			String8 cnt_str = string_print(temp.arena,"%u32\n", count);
+			gdraw_simple_text_box(vb, simple_font, cnt_str.str, fvec4_make(1.0, 1.0, 1.0, 1.0), aa, bb, aa,(bb.y - aa.y) / 4.0);
 			BoidSimCell *cell = &sim->cells[x + sim->cells_width * y];
 		}
 	}
+	end_temp(temp);
 	atomic_store(&sim->should_draw, false);
 	barrier_wait(sim->host_barrier_for_two);
 }
@@ -914,6 +933,8 @@ void* boid_sim_thread(Thread *thread)
 		b32 is_first_thread = barrier_wait(sim->all_barriers[atomic_load(&sim->thread_count)-1]);
 		if(is_first_thread)
 		{
+
+
 			BoidSimStage last_stage = atomic_load(&sim->stage);
 			BoidSimStage stage = last_stage + 1;
 			b32 should_reset = false;
@@ -922,6 +943,9 @@ void* boid_sim_thread(Thread *thread)
 				stage = BOID_SIM_STAGE_RESET;
 				atomic_store(&sim->should_reset, false);
 			}
+
+			sim->global = MAIN_THREAD->global.boid;
+
 			if(stage == BOID_SIM_STAGE_RESET)
 			{
 				if(should_reset == false)
@@ -931,7 +955,16 @@ void* boid_sim_thread(Thread *thread)
 				else
 				{
 					atomic_store(&sim->tick_accum, 0);
+					sim->boid_count = sim->global.boid_count_uint;
+					sim->stage_params[BOID_SIM_STAGE_COUNT].task_max_count = sim->boid_count;
+					sim->stage_params[BOID_SIM_STAGE_ALLOCATE].task_max_count = sim->boid_count;
+					sim->stage_params[BOID_SIM_STAGE_FILL].task_max_count = sim->boid_count;
+					sim->stage_params[BOID_SIM_STAGE_RESET].task_max_count = sim->boid_count;
 				}
+			}
+			else if(last_stage == BOID_SIM_STAGE_RESET)
+			{
+				sim->draw_count = sim->boid_count;
 			}
 			if(atomic_load(&sim->should_run) == false)
 			{
@@ -974,10 +1007,8 @@ void* boid_sim_thread(Thread *thread)
 			mutex_unlock(sim->mutex);
 		}
 
-		sim->global = MAIN_THREAD->global.boid;
 
 		is_first_thread = barrier_wait(sim->all_barriers[atomic_load(&sim->thread_count)-1]);
-
 
 		switch(sim->stage)
 		{

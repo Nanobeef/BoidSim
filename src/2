@@ -514,7 +514,7 @@ void ui_poll_button(UI_Box *e, b32 check_bounds)
 	{
 		e->state.first_hovering_ptr[0] = e->state.first_hovering = false;
 	}
-	if(check_bounds)
+	if(false)
 	{
 		fvec2 mouse = fvec2_make(ui->fe.mouse_x, ui->fe.mouse_y);
 		if(point_vs_rounded_rectangle(mouse,e->top_left, e->bottom_right, fvec2_scalar(e->theme.corner_radius)))
@@ -777,18 +777,7 @@ UI *poll_ui_test(UI *ui, FrameEvents fe, uvec2 frame_size, BoidSim *sim)
 			bump_button->text = str8_lit("  Bump");
 			bump_button->state.pressed_ptr = &bp->bump_enable;
 			left_x += width;
-
-			// This is convoluted
-			// Trying to get the button light up also when a key is pressed
-			if(fe.b.pressed != false)
-			{
-				bp->bump_enable = true;
-			}
-			if(fe.b.release_time == fe.time)
-			{
-				bp->bump_enable = false;
-			}
-
+			bp->bump_enable = fe.b.pressed;
 
 		}
 		{
@@ -929,7 +918,6 @@ UI *poll_ui_test(UI *ui, FrameEvents fe, uvec2 frame_size, BoidSim *sim)
 				"\n"
 				"Boid Simulation\n"
 				" Reset: (R)\n"
-				" Bump : (B)\n"
 				" Draw Grid (Z)\n"
 				" Clear Area: (Right Click)\n"
 				" Most sliders are non-linear.\n"
@@ -1062,4 +1050,7 @@ UI *draw_ui_test(UI *ui, DeviceVertexBuffer *vb, const SimpleFont *simple_font)
 	ui_draw(ui, simple_font, vb);
 	return ui;
 }
+
+
+
 

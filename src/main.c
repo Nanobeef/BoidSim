@@ -17,9 +17,7 @@ s32 main()
 {
 	main_init(GB * 64lu);
 
-
 	boid_sim_resolve_test();
-
 
 	const u32 frame_count = 2;
 	const u32 resize_count = 2;

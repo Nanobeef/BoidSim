@@ -413,8 +413,6 @@ void destroy_barrier(Barrier barrier);
 b32 barrier_wait(Barrier barrier);
 
 typedef struct{
-
-
 	u64 frame_time;
 	struct GlobalBoidParams{
 		f32 seperation_range_norm;
@@ -468,10 +466,12 @@ void* join_thread(Thread *thread);
 
 // Thread
 extern thread_local Thread *THREAD;
+extern u32 THREAD_COUNT;
 extern Thread *MAIN_THREAD;
 void init_threads();
 void cleanup_threads();
 
+u32 get_physical_thread_count();
 
 
 typedef struct{

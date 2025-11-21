@@ -11,6 +11,7 @@
 Thread main_thread = {0};
 
 thread_local Thread *THREAD = NULL;
+u32 THREAD_COUNT = 0;
 Thread *MAIN_THREAD = NULL;
 	
 
@@ -23,11 +24,22 @@ void init_threads()
 	THREAD = &main_thread;	
 	THREAD->arena = allocate_sub_arena(MB * 128, &main_arena);
 	MAIN_THREAD = THREAD;
+	THREAD_COUNT = get_physical_thread_count();
 }
 void cleanup_threads()
 {
 	
 }
+
+
+u32 get_physical_thread_count()
+{
+	cpu_set_t mask;
+	sched_getaffinity(0,sizeof(mask), &mask);
+	s32 count = CPU_COUNT(&mask);
+	return defmin((u32)count, 1024);
+}
+
 
 typedef struct{
 	pthread_t thread;
