@@ -146,8 +146,8 @@ glsl_compiler="glslc"
 
 compiler="gcc"
 cflags_common="-std=gnu99 -D_GNU_SOURCE"
-cflags_debug="-D DEBUG -O0 -gdwarf"
-cflags_release="-D RELEASE -O4"
+cflags_debug="-D DEBUG -O0 -gdwarf -g"
+cflags_release="-D RELEASE -O4 -g -gdwarf"
 cflags_profile=""
 #clfags_profile="-p -pg"
 cflags_include="-I/usr/include/freetype2"
@@ -155,14 +155,13 @@ cflags_warnings="-Wall -Wno-unused-function -Wno-builtin-declaration-mismatch -W
 cflags_machine="-march=native"
 
 linker="gcc -fuse-ld=lld"
-lflags_debug="-O0"
-lflags_release="-O4"
+lflags_debug="-O0 -gdwarf -g"
+lflags_release="-O4 -flto"
 #lflags_profile="-p -pg"
 lflags_profile=""
 #lflags_machine="-march=native"
 #lflags_machine="-march=x86-64"
 lflags_libs="-lm -lc -lpthread -latomic -lX11 -lXext -lXpresent -lvulkan -levdev -lasound -lfreetype"
-
 
 # Build Stages
 
@@ -235,6 +234,16 @@ compile_stage(){
 	CFILES=$(find $src_dir -name "*.c" -type f)
 	CHEADERS=$(find $src_dir -name "*.h" -type f)
 
+	header_has_changed=0
+
+	for header_file in $CHEADERS; do
+		if [ "$header_file"  -nt "$target_binary" ]; then
+			header_has_changed=1
+			echo "$header_file"
+		fi
+	done
+
+
 	for source_file in $CFILES; do
 		file_base=$(basename "$source_file" .c)
 		object_file="$build_dir$file_base.o"
@@ -243,7 +252,7 @@ compile_stage(){
 
 		message="$source_file -> $object_file"
 
-		if [ "$source_file" -nt "$object_file" ]; then
+		if [ "$source_file" -nt "$object_file" ] || [ $header_has_changed -eq 1 ]; then
 			not_to_date_print "$message"
 			$compiler -c $cflags "$source_file" -o "$object_file" &
 			needs_to_link=1
