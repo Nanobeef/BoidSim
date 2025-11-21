@@ -28,7 +28,8 @@ void* boid_sim_thread(Thread *thread);
 BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_count, Arena *arena)
 {
 	max_thread_count = 32;
-	max_boid_count = 1024 * 1024 * 2;
+	max_boid_count = 1024 * 512;
+
 	u32 boid_count_limit = 512 * 1024 * 1024 - 1024;
 	max_boid_count = (max_boid_count & (~1023u));
 
@@ -78,6 +79,8 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 			.global_index = i,	
 			.sim = sim,
 		};
+		// If this is inside of the initializer list, it will cause a segfault when optimized
+		sim->thread_params[i].prng = init_prng((i+2) * 2324222);
 	}
 
 	sim->stage_params[BOID_SIM_STAGE_COUNT] = (BoidSimStageParams) {
@@ -132,14 +135,16 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 
 	{
 		struct GlobalBoidParams *bp = &MAIN_THREAD->global.boid;
+		bp->boid_count_uint = max_boid_count;
 
-		bp->cohesion_range_norm = 0.1;
-		bp->seperation_range_norm = 0.4;
-		bp->alignment_range_norm = 0.4;
+		bp->seperation_range_norm = 0.5;
+		bp->cohesion_range_norm = 0.3;
+		bp->alignment_range_norm = 0.5;
 
-		bp->cohesion_strength_norm = 0.9;
-		bp->seperation_strength_norm = 0.9;
-		bp->alignment_strength_norm = 0.3;
+		bp->seperation_strength_norm = 0.7;
+		bp->cohesion_strength_norm = 0.8;
+		bp->alignment_strength_norm = 0.7;
+
 
 		bp->boid_size_norm = 0.5;
 		bp->min_speed_norm = 0.2;
@@ -148,6 +153,8 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 
 		bp->attractor_range_norm = 0.7;
 		bp->attractor_strength_snorm = 0.5;
+		bp->bump_enable = false;
+		bp->show_time = false;
 	}
 
 
@@ -247,8 +254,6 @@ void draw_boid_sim_overlay(DeviceVertexBuffer *vb, Camera2 camera, SimpleFont si
 	Temp temp = begin_temp(0);
 
 	fvec4 text_color = fvec4_make(0.1, 0.8, 0.1, 1.0);
-
-
 
 	u8 *str = 0;
 	BoidSimStageParams sp;
@@ -715,6 +720,8 @@ void boid_sim_resolve(BoidSimParams *p)
 	BoidSim *sim = p->sim;
 	Task task;
 
+	PRNG *rg = &p->prng;
+
 	
 	f32 pw = 2;
 	f32 seperation_strength = powf(sim->global.seperation_strength_norm, pw);
@@ -724,6 +731,37 @@ void boid_sim_resolve(BoidSimParams *p)
 	u32 seperation_range = (u32)(powf(sim->global.seperation_range_norm,pw) * (f32)(1<<24));
 	u32 cohesion_range = (u32)(powf(sim->global.cohesion_range_norm,pw) * (f32)(1<<24));
 	u32 alignment_range = (u32)(powf(sim->global.alignment_range_norm,pw) * (f32)(1<<24));
+
+
+	b32 seperation_enable = true;
+	b32 cohesion_enable = true;
+	b32 alignment_enable = true;
+	b32 limit_speed = true;
+
+	f32 randomness = sim->global.randomness_norm;
+
+	b32 bump_enable = sim->global.bump_enable;
+
+
+	if(seperation_strength == 0.0f || seperation_range == 0)
+	{
+		seperation_enable = false;
+	}
+	if(cohesion_strength == 0.0f || cohesion_range == 0)
+	{
+		cohesion_enable = false;
+	}
+	if(alignment_strength == 0.0f || alignment_range == 0)
+	{
+		alignment_enable = false;
+	}
+	if(sim->global.min_speed_norm == 0.0f && sim->global.max_speed_norm == 1.0f)
+	{
+		limit_speed = false;
+
+	}
+
+
 
 	f32 min_speed = powf(sim->global.min_speed_norm,pw) * 0.01;
 	f32 max_speed = powf(sim->global.max_speed_norm,pw) * 0.01;
@@ -737,7 +775,6 @@ void boid_sim_resolve(BoidSimParams *p)
 
 
 
-	PRNG rg = init_prng(get_time_ms());
 
 	while((task = reserve_boid_sim_task(p, tg)).has_work)
 	{
@@ -752,29 +789,42 @@ void boid_sim_resolve(BoidSimParams *p)
 				uvec2 upos = boid_sim_fvec2_to_uvec2(pos);
 				svec2 svel = boid_sim_fvec2_to_svec2(vel);
 
-				if(1)
+				if(seperation_enable)
 				{
 					fvec2 average;
 					u32 count = boid_sim_search_average(p, upos, pos, vel, seperation_range, &average, 0);
 					if(count)
 					{
+						f32 distance = fvec2_distance(pos, average);
+						f32 factor = 1.0;
+						if(distance > 1e-4)
+						{
+							factor = 1.0 / (distance * 1e3);
+						}
+						
 						average = fvec2_sub(pos, average);
-						average = fvec2_scalar_mul(average, seperation_strength);
+						average = fvec2_scalar_mul(average, seperation_strength * factor);
 						vel = fvec2_add(vel, average);
 					}
 				}
-				if(1)
+				if(cohesion_enable)
 				{
 					fvec2 average;
 					u32 count = boid_sim_search_average(p, upos, pos, vel, cohesion_range, &average, 0);
 					if(count)
 					{
+						f32 distance = fvec2_distance(pos, average);
+						f32 factor = 1.0;
+						if(distance > 1e-4)
+						{
+							factor = 1.0 / (distance * 1e3);
+						}
 						average = fvec2_sub(pos, average);
-						average = fvec2_scalar_mul(average, cohesion_strength);
+						average = fvec2_scalar_mul(average, cohesion_strength * factor);
 						vel = fvec2_sub(vel, average);
 					}
 				}
-				if(1)
+				if(alignment_enable)
 				{
 					fvec2 average;
 					u32 count = boid_sim_search_average(p, upos, pos, vel, alignment_range, 0, &average);
@@ -784,29 +834,57 @@ void boid_sim_resolve(BoidSimParams *p)
 					}
 				}
 
-				f32 speed = fvec2_magnitude(vel);
-				if(speed > max_speed)
-				{
-					vel = fvec2_scalar_mul(vel, 1.0-acceleration);
-				}
-				if(speed < min_speed)
-				{
-					vel = fvec2_scalar_mul(vel, 1.0+acceleration);
-				}
-				
 				if(attractor_enable)
 				{
 					while(fvec2_distance(pos, attractor_position) < attractor_distance)
 					{
 						fvec2 dir = fvec2_unit(fvec2_sub(attractor_position, pos));	
-						u64 rand = random_u64(&rg);
+						u64 rand = random_u64(rg);
 						memcpy(&upos, &rand, 8);
 						pos = boid_sim_uvec2_to_fvec2(upos);
 					}
 				}
 
-
+				if(limit_speed)
+				{
+					f32 speed = fvec2_magnitude(vel);
+					if(speed > max_speed)
+					{
+						vel = fvec2_scalar_mul(vel, 1.0-acceleration);
+					}
+					if(speed < min_speed)
+					{
+						vel = fvec2_scalar_mul(vel, 1.0+acceleration);
+					}
+				}
+				
 				svel = boid_sim_fvec2_to_svec2(vel);
+
+
+				{
+
+					svec2 rv;
+
+					if(bump_enable)
+					{
+						u64 u = random_u64(rg);
+						memcpy(&rv, &u, 8);
+						u32 rsh = 10;
+						rv = svec2_rsh(rv, rsh);
+						svel = svec2_add(svel, rv);
+					}
+					else if(randomness != 0.0f)
+					{
+						u64 u = random_u64(rg);
+						memcpy(&rv, &u, 8);
+						u32 rsh = 12;
+						rv = svec2_rsh(rv, rsh);
+						rv = svec2_cast_fvec2(
+							fvec2_scalar_mul(fvec2_cast_svec2(rv), randomness)
+						);
+						svel = svec2_add(svel, rv);
+					}
+				}
 
 			// Update
 				{

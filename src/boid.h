@@ -160,8 +160,8 @@ typedef union BoidSimParams{
 		BoidSim *sim;
 		u32 global_index;
 		u32 local_index;
+		PRNG prng;
 	};
-	u8 minimum_size[64];
 }BoidSimParams align(64);
 
 void boid_sim_resolve_test();

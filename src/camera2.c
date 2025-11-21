@@ -88,10 +88,6 @@ Camera2 resize_camera2(Camera2 camera, uvec2 frame_size)
 Camera2 update_camera2(Camera2 camera, FrameEvents fe, b32 should_poll)
 {
 	camera.pixel_mouse = fvec2_make(fe.mouse_x, fe.mouse_y);
-	if(fe.w.pressed == true)
-	{
-		camera.dst_pan.y += 0.01;
-	}
 	if(should_poll == false)
 	{
 		camera = compute_camera2(camera);
@@ -107,6 +103,10 @@ Camera2 update_camera2(Camera2 camera, FrameEvents fe, b32 should_poll)
 		if(fe.left_control.pressed == true)
 		{
 			button_scale *= 2.0;
+		}
+		if(fe.left_shift.pressed == true)
+		{
+			button_scale *= 0.25;
 		}
 		delta.x += -((f32)fe.d.pressed)*button_scale;
 		delta.x += ((f32)fe.a.pressed)*button_scale;

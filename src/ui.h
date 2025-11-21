@@ -2,6 +2,8 @@
 
 #include "device_graphics.h"
 
+#include "boid.h"
+
 typedef enum{
 	UI_ELEMENT_NULL = 0,
 	UI_ELEMENT_WARM_NULL,
@@ -34,6 +36,7 @@ typedef struct UI_ElementColorTheme{
 	f32 corner_radius;
 	f32 outline_thickness;
 	f32 slider_width;
+	f32 text_height;
 }UI_ElementTheme;
 
 typedef struct{
@@ -64,6 +67,8 @@ typedef struct{
 
 	UI_ElementTheme element_themes[UI_ELEMENT_COUNT];
 
+	Arena *arena;
+
 }UI;
 
 
@@ -77,7 +82,6 @@ typedef struct UI_ElementState{
 	b32 hovering;
 	b32 pressed;
 	f32 norm;	
-
 	b32 first_pressed;
 	b32 first_hovering;
 
@@ -86,6 +90,8 @@ typedef struct UI_ElementState{
 	b32 *hovering_ptr;
 	b32 *pressed_ptr;
 	f32 *norm_ptr;
+	b32 *first_pressed_ptr;
+	b32 *first_hovering_ptr;
 }UI_ElementState;
 
 typedef struct UI_Element{
@@ -123,4 +129,6 @@ typedef UI_Element UI_Box;
 typedef UI_Element UI_Button;
 typedef UI_Element UI_Slider;
 
-UI *ui_test(DeviceVertexBuffer *vb, const SimpleFont *simple_font, FrameEvents fe, uvec2 frame_size);
+UI *init_ui_test();
+UI *poll_ui_test(UI *ui, FrameEvents fe, uvec2 frame_size, BoidSim *sim);
+UI *draw_ui_test(UI *ui, DeviceVertexBuffer *vb, const SimpleFont *simple_font);

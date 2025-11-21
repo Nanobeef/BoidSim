@@ -328,8 +328,26 @@ void poll_window_driver_x11(void *driver_data, Event *event_ring_buffer)
 					case XK_8: key = KEY_8; break;
 					case XK_9: key = KEY_9; break;
 					case XK_0: key = KEY_0; break;
+
+					case XK_F1: key = KEY_F1; break;
+					case XK_F2: key = KEY_F2; break;
+					case XK_F3: key = KEY_F3; break;
+					case XK_F4: key = KEY_F4; break;
+					case XK_F5: key = KEY_F5; break;
+					case XK_F6: key = KEY_F6; break;
+					case XK_F7: key = KEY_F7; break;
+					case XK_F8: key = KEY_F8; break;
+					case XK_F9: key = KEY_F9; break;
+					case XK_F10: key = KEY_F10; break;
+					case XK_F11: key = KEY_F11; break;
+					case XK_F12: key = KEY_F12; break;
+
 					// LCTROL
+					case XK_Control_L: key = KEY_LEFT_CONTROL; break;
+					case XK_Shift_L: key = KEY_LEFT_SHIFT; break;
+
 					case XK_grave: key = KEY_GRAVE; break;
+
 
 					default: break;
 				}

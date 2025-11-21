@@ -414,6 +414,8 @@ b32 barrier_wait(Barrier barrier);
 
 typedef struct{
 
+
+	u64 frame_time;
 	struct GlobalBoidParams{
 		f32 seperation_range_norm;
 		f32 cohesion_range_norm;
@@ -429,6 +431,9 @@ typedef struct{
 		f32 random_chance_norm;
 		f32 random_strength_norm;
 
+		f32 randomness_norm;
+
+
 		f32 boid_count_norm;
 		f32 boid_size_norm;
 
@@ -437,6 +442,12 @@ typedef struct{
 		f32 attractor_strength_snorm;
 		fvec2 attractor_position;
 
+		b32 bump_enable;
+		b32 random_enable;
+
+		u32 boid_count_uint;
+		b32 show_time;
+		b32 show_controls;
 	}boid;
 }Global;
 

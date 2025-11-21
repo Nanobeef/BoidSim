@@ -68,12 +68,14 @@ s32 main()
 		
 	BoidSim* boid_sim = create_boid_sim(device, 1024u * 1024u * 1u, 32, &main_arena);
 
-	b32 move_world_camera = false;
+
+	UI *boid_ui = init_ui_test();
 
 	while(fe.escape.pressed == false)
 	{
 		loop_time = loop_time_end(loop_time);
 		loop_time = loop_time_start(loop_time);
+		THREAD->global.frame_time = loop_time.real_elapsed;
 		poll_window(window, event_ring_buffer);
 		fe = resolve_frame_events(fe, event_ring_buffer, ring_current(resize_arena_ring));
 
@@ -98,8 +100,10 @@ s32 main()
 			THREAD->global.boid.attractor_enable = false;
 		}
 
+		poll_ui_test(boid_ui, fe, swapchain.size, boid_sim);
 
-		b32 should_recreate_renderer = poll_device_renderer(&dr, fe, move_world_camera);
+		b32 should_recreate_renderer = poll_device_renderer(&dr, fe, !boid_ui->focused);
+
 
 		if(fe.window_resized || should_recreate_renderer) 
 		{
@@ -183,7 +187,7 @@ s32 main()
 				DeviceVertexBuffer *vb = &dr.overlay_vertex_buffers[frame_index];
 				clear_vertex_buffer(vb);
 
-				draw_boid_sim_overlay(vb, dr.overlay_camera, dr.simple_font, boid_sim);
+				//draw_boid_sim_overlay(vb, dr.overlay_camera, dr.simple_font, boid_sim);
 
 				VkPipeline vertex2_pipeline = dr.vertex2_pipeline;
 				if(dr.show_wireframe)
@@ -197,13 +201,10 @@ s32 main()
 			{
 				DeviceVertexBuffer *vb = &dr.ui_vertex_buffers[frame_index];
 				clear_vertex_buffer(vb);
-				UI *ui = ui_test(vb, &dr.simple_font, fe, swapchain.size);
-				move_world_camera = !ui->focused;
-
-
+				draw_ui_test(boid_ui, vb, &dr.simple_font);
 				{
 					DeviceRendererPushRange push_range = {
-						.affine = fmat3_padding(ui->affine_matrix),
+						.affine = fmat3_padding(boid_ui->affine_matrix),
 						.color = fvec4_make(1.0, 0.0, 0.0, 1.0),
 						.time = get_time_ms(),
 						.index = dr.debug_index,

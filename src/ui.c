@@ -2,6 +2,7 @@
 #include "embed.h"
 
 
+
 static fvec4 gold_color = { 0.94, 0.62, 0.054, 1.0};
 
 fvec2 ui_pixel_to_screen(UI *ui, fvec2 pixel)
@@ -126,6 +127,7 @@ UI* allocate_ui(u32 max_element_count, Arena *arena)
 		.states[1].enabled = true,
 		.corner_radius = 8,
 		.outline_thickness = 0.75,
+		.text_height = 14.0,
 	};
 	ui->element_themes[UI_ELEMENT_BUTTON] = ui->element_themes[UI_ELEMENT_BOX];
 	ui->element_themes[UI_ELEMENT_BUTTON].corner_radius = 2;
@@ -139,7 +141,7 @@ UI* allocate_ui(u32 max_element_count, Arena *arena)
 	return ui;
 }
 
-UI* ui_next_frame(UI *ui, uvec2 frame_size, FrameEvents fe, DeviceVertexBuffer *vb)
+UI* ui_next_frame(UI *ui, uvec2 frame_size, FrameEvents fe)
 {
 	ui->frame_accum++;
 	ui->frame_pixel_size = fvec2_cast_uvec2(frame_size);
@@ -168,9 +170,10 @@ UI* ui_next_frame(UI *ui, uvec2 frame_size, FrameEvents fe, DeviceVertexBuffer *
 
 
 	ui->fe = fe;
-	ui->vb = vb;
 
 	reset_arena(&ui->frame_arenas[ui->frame_index]);
+	ui->arena = &ui->frame_arenas[ui->frame_index];
+
 	ui->prng = init_prng(1232543);
 
 	ui->root->children_tail = 0;
@@ -317,6 +320,11 @@ void ui_draw_box(UI_Box *e)
 
 	gdraw_rounded_rectangle_outline(ui->vb, q,ir,or, a,b, e->theme.outline.color);
 	gdraw_rounded_rectangle(ui->vb, q, ir, a,b, e->theme.background.color);
+
+	if(e->text.str)
+	{
+		gdraw_simple_text_box(ui->vb, *ui->simple_font, e->text.str, e->theme.text.color, a, b, a, (e->theme.text_height * pixel_size));
+	}
 }
 
 void ui_draw_button(UI_Box *e)
@@ -344,6 +352,10 @@ void ui_draw_button(UI_Box *e)
 		}
 		background = fvec4_add(background, e->theme.states[e->state.pressed].color);
 		gdraw_rounded_rectangle(ui->vb, q, ir, a,b, background);
+	}
+	if(e->text.str)
+	{
+		gdraw_simple_text_box(ui->vb, *ui->simple_font, e->text.str, e->theme.text.color, a, b, a, (e->theme.text_height * pixel_size));
 	}
 
 }
@@ -385,7 +397,7 @@ void ui_draw_slider(UI_Slider*e)
 
 		if(e->text.str)
 		{
-			gdraw_simple_text_box(ui->vb, *ui->simple_font, e->text.str, e->theme.text.color, a, b, a, (b.y-a.y) * 0.9);
+			gdraw_simple_text_box(ui->vb, *ui->simple_font, e->text.str, e->theme.text.color, a, b, a, (e->theme.text_height * pixel_size));
 		}
 	}
 }
@@ -411,8 +423,10 @@ void ui_draw_element(UI_Element *e)
 	}
 }
 
-void ui_draw(UI *ui)
+void ui_draw(UI *ui, const SimpleFont *simple_font, DeviceVertexBuffer *vb)
 {
+	ui->vb = vb;
+	ui->simple_font = simple_font;
 	// The maximum number of elements is fixed and small, a stack overflow is unlikely.
 	ui_draw_element(ui->root);
 }
@@ -471,18 +485,34 @@ void ui_poll_box(UI_Box *e, b32 check_bounds)
 void ui_poll_button(UI_Box *e, b32 check_bounds)
 {
 	UI *ui = e->ui;
+	if(e->state.pressed_ptr == 0)
+	{
+		e->state.pressed_ptr = &e->state.pressed;
+	}
+	if(e->state.first_pressed_ptr == 0)
+	{
+		e->state.first_pressed_ptr = &e->state.first_pressed;
+	}
+	if(e->state.first_hovering_ptr == 0)
+	{
+		e->state.first_hovering_ptr = &e->state.first_hovering;
+	}
+	if(e->state.hovering_ptr == 0)
+	{
+		e->state.hovering_ptr = &e->state.hovering;
+	}
 	if(e->state.pressed)
 	{
 		ui->focused = true;
 		if(ui->fe.mouse_left.pressed == false)
 		{
-			e->state.pressed = false;
+			e->state.pressed = e->state.pressed_ptr[0] = false;
 		}
-		e->state.first_pressed = false;
+		e->state.first_pressed_ptr[0] = e->state.first_pressed = false;
 	}
 	if(e->state.hovering)
 	{
-		e->state.first_hovering = false;
+		e->state.first_hovering_ptr[0] = e->state.first_hovering = false;
 	}
 	if(check_bounds)
 	{
@@ -491,31 +521,32 @@ void ui_poll_button(UI_Box *e, b32 check_bounds)
 		{
 			if(e->state.hovering == false)
 			{
-				e->state.first_hovering = true;
+				e->state.first_hovering_ptr[0] = e->state.first_hovering = true;
 			}
 			e->state.hovering = true;
 			if(ui->fe.mouse_left.pressed)
 			{
 				if(e->state.pressed == false)
 				{
-					e->state.pressed = true;	
+					e->state.pressed = e->state.pressed_ptr[0] = true;
 					e->state.pressed_position = mouse;
-					e->state.first_pressed = true;
+					e->state.first_pressed = e->state.first_pressed_ptr[0] = true;
 				}
 			}
 			else
 			{
 				e->state.pressed = false;
+				e->state.pressed_ptr = false;
 			}
 		}
 		else
 		{
-			e->state.hovering = false;
+			e->state.hovering = e->state.hovering_ptr[0] = false;
 		}
 	}
 	else
 	{
-		e->state.hovering = false;
+		e->state.hovering = e->state.hovering_ptr[0] = false;
 	}
 }
 
@@ -613,22 +644,29 @@ void ui_poll(UI *ui)
 }
 
 
-UI *ui_test(DeviceVertexBuffer *vb, const SimpleFont *simple_font, FrameEvents fe, uvec2 frame_size)
+
+UI *init_ui_test()
 {
-	static UI *ui = NULL;
-	if(ui == NULL)
-	{
-		ui = allocate_ui(1024, &main_arena);	
-		ui->simple_font = simple_font;
-	}
-	ui_next_frame(ui, frame_size, fe, vb);
+	UI *ui = allocate_ui(1024, &main_arena);	
+	return ui;
+}
+
+
+UI *poll_ui_test(UI *ui, FrameEvents fe, uvec2 frame_size, BoidSim *sim)
+{
+	ui_next_frame(ui, frame_size, fe);
 	
 	UI_Box *box = 0;
+
+
+
+
 	UI_Slider *range_sliders[3];
 	UI_Slider *strength_sliders[3];
 	UI_Slider *speed_sliders[3];
 	UI_Slider *misc_sliders[3];
 
+	struct GlobalBoidParams *bp = &THREAD->global.boid;
 	{
 		f32 box_height = 96;
 		f32 box_width = 800;
@@ -637,6 +675,7 @@ UI *ui_test(DeviceVertexBuffer *vb, const SimpleFont *simple_font, FrameEvents f
 		//f32 margin = 24;
 		fvec2 top_left = 		fvec2_make(margin, (f32)frame_size.y - box_height - vertical_padding);
 		fvec2 bottom_right = 	fvec2_make(margin + box_width, (f32)frame_size.y - vertical_padding);
+		f32 horizontal_center = (top_left.x + bottom_right.x) / 2.0;
 
 		box = ui_box(ui->root, 0, top_left.x, top_left.y, bottom_right.x, bottom_right.y);
 		UI_Button *button = 0;
@@ -716,13 +755,219 @@ UI *ui_test(DeviceVertexBuffer *vb, const SimpleFont *simple_font, FrameEvents f
 			}
 			left_x += width;
 		}
-		struct GlobalBoidParams *bp = &THREAD->global.boid;
 
-		range_sliders[0]->text = str8_lit("Seperation Range");
+
+		u32 info_left_x = left_x;
+
+		u32 top_y = 0;
+		{
+			f32 size = 16.0;
+			f32 xpad = 12, ypad = 8;
+			f32 width = 64;
+			f32 ypos = ypad;
+			left_x += xpad;
+			info_left_x += 8;
+			f32 x0 = left_x;
+			f32 y0 = ypos;
+			f32 x1 = x0 + width;
+			f32 y1 = y0 + size;
+			UI_Button *bump_button = ui_button(box,0, x0,y0,x1,y1);
+			bump_button->text = str8_lit("  Bump");
+			bump_button->state.pressed_ptr = &bp->bump_enable;
+			left_x += width;
+
+		}
+		{
+			f32 size = 16.0;
+			f32 xpad = 12, ypad = 8;
+			f32 width = 64;
+			f32 ypos = ypad;
+			left_x += xpad;
+			f32 x0 = left_x;
+			f32 y0 = ypos;
+			f32 x1 = x0 + width;
+			f32 y1 = y0 + size;
+			UI_Button *time_button = ui_button(box,0, x0,y0,x1,y1);
+			time_button->text = str8_lit("  Time");
+			if(time_button->state.first_pressed)
+			{
+				bp->show_time = !bp->show_time;		
+			}
+			left_x += width;
+
+			if(time_button->state.hovering || bp->show_time){
+
+				u32 thread_time_divisor = (sim->boid_count) / sim->thread_count;
+				UI_Box *time_box = ui_box(ui->root, 0, 8, 8, 256, 520);
+				time_box->theme.text_height = 18;
+				time_box->text = string_print(ui->arena, 
+					"Boid Count %u32K\n"
+					"FPS: %f32\n"
+					"UPS: %f32\n"
+					"Update:     %u64 ns\n"
+					" Count:     %u64 ns\n"
+					" Alloc:     %u64 ns\n"
+					" Fill:      %u64 ns\n"
+					" Construct: %u64 ns\n"
+					" Resolve:   %u64 ns\n"
+					"Reset:      %u64 ns\n"
+					"\n"
+					"Thread Time per Boid (%u64)\n"
+					"Update:     %u64 ns\n"
+					" Count:     %u64 ns\n"
+					" Alloc:     %u64 ns\n"
+					" Fill:      %u64 ns\n"
+					" Construct: %u64 ns\n"
+					" Resolve:   %u64 ns\n"
+					"Reset:      %u64 ns\n"
+					"\n"
+					"Goal:(1M at 144ups) (7ms)\n"
+					"Update:     %u32 ns\n"
+					" Count:     %u32 ns (zero)\n"
+					" Alloc:     %u32 ns\n"
+					" Fill:      %u32 ns\n"
+					" Construct: %u32 ns\n"
+					" Resolve:   %u32 ns\n"
+					"Reset:      %u32 ns\n"
+					"\n"
+					,
+					(u64)sim->boid_count / (1024),
+
+					1000000000.0f / (f32)MAIN_THREAD->global.frame_time,
+					1000000000.0f / (f32)sim->elapsed_time,
+					
+					sim->elapsed_time / 1000,
+					sim->stage_times[BOID_SIM_STAGE_COUNT] / 1000,
+					sim->stage_times[BOID_SIM_STAGE_ALLOCATE] / 1000,
+					sim->stage_times[BOID_SIM_STAGE_FILL] / 1000,
+					sim->stage_times[BOID_SIM_STAGE_CONSTRUCT] / 1000,
+					sim->stage_times[BOID_SIM_STAGE_RESOLVE] / 1000,
+					sim->stage_times[BOID_SIM_STAGE_RESET] / 1000,
+
+					sim->thread_count,
+
+					sim->elapsed_time / thread_time_divisor,
+					sim->stage_times[BOID_SIM_STAGE_COUNT] / thread_time_divisor,
+					sim->stage_times[BOID_SIM_STAGE_ALLOCATE] / thread_time_divisor,
+					sim->stage_times[BOID_SIM_STAGE_FILL] / thread_time_divisor,
+					sim->stage_times[BOID_SIM_STAGE_CONSTRUCT] / thread_time_divisor,
+					sim->stage_times[BOID_SIM_STAGE_RESOLVE] / thread_time_divisor,
+					sim->stage_times[BOID_SIM_STAGE_RESET] / thread_time_divisor,
+
+					224,
+					0,
+					10,
+					10,
+					30,
+					150,
+					50
+				);
+			}
+		}
+		{
+			f32 size = 16.0;
+			f32 xpad = 12, ypad = 8;
+			f32 width = 64;
+			f32 ypos = ypad;
+			left_x += xpad;
+			f32 x0 = left_x;
+			f32 y0 = ypos;
+			f32 x1 = x0 + width;
+			f32 y1 = y0 + size;
+			UI_Button *controls_button = ui_button(box,0, x0,y0,x1,y1);
+
+			if(controls_button->state.first_pressed)
+			{
+				bp->show_controls = !bp->show_controls;
+			}
+
+
+			controls_button->text = str8_lit("Controls");
+			if(controls_button->state.hovering || bp->show_controls)
+			{
+				u32 offset = box_height + 8;
+				u32 width = 400;
+				u32 height = 600 - (bottom_right.y - top_left.y);
+
+				UI_Box *controls_box = ui_box(ui->root, 0, horizontal_center - (width/2), top_left.y - offset - height, horizontal_center + (width/2), bottom_right.y - offset);
+				controls_box->theme.background.color.a = 1.0;
+				controls_box->text = string_print(ui->arena, 
+				"Exit: (Escape)\n"
+				"\n"
+				"Camera\n"
+				"  Pan: (Left Click)\n"
+				"  Zoom: (Wheel)\n"
+				"  Move: (W A S D)\n"
+				"  Zoom: (Q E)\n"
+				"  Fast Move: (Left Control)\n"
+				"  Slow Move: (Left Shift)\n"
+				"  Toggle Reset: (F3)\n"
+				" Enable Pixel Zoom: (M)\n"
+				"\n"
+				"Graphics\n"
+				" Triangles:\n"
+				"  Normal: (O + 1) or (O + 0)\n"
+				"  Debug: (O + 2)\n"
+				"  Opaque: (O + 3)\n"
+				" Toggle Lines: (I)\n"
+				" Multisample Count:\n"
+				"  Max: (P + 0)\n"
+				"  Other: [(P + 1) (P + 2) (P + 3) ...     ]\n"
+				"         [   1       2       4    8,16,32 ]\n"
+				"\n"
+				"Boid Simulation\n"
+				" Reset: (R)\n"
+				" Clear Area: (Right Click)\n"
+				" Most sliders are non-linear.\n"
+				"\n"
+				"-----------------------------------\n"
+				"\n"
+				"Info\n"
+				" Release: PROTOTYPE\n"
+				" Renderer: Vulkan 1.0\n"
+				" OS: Linux\n"
+				" Window: X11\n"
+				" Libraries:\n"
+				"  FreeType 2\n"
+				"  Simd Everywhere\n"
+				" Font: Liberation Mono\n"
+				"\n"
+				"Made in U.S.A.\n"
+				);
+			}
+			top_y += size;
+			left_x = info_left_x;
+
+		}
+
+		{
+			f32 size = 58.0;
+			f32 xpad = 8, ypad = 8;
+			f32 width = 232;
+			f32 ypos = ypad;
+			left_x += xpad;
+			f32 x0 = left_x - xpad;
+			f32 y0 = ypos + top_y + ypad;
+			f32 x1 = x0 + width;
+			f32 y1 = y0 + size;
+			UI_Button *count_box  = ui_box(box,0, x0,y0,x1,y1);
+
+			count_box->text = string_print(ui->frame_arenas, 
+				"Boid Count:   %u32 (static)\n"
+				"Thread Count: 32     (static)\n"
+				"\n"	
+				"  Eli Eichner | November 2025"
+				,bp->boid_count_uint);
+			count_box->state.pressed_ptr = &bp->bump_enable;
+			left_x += width;
+			count_box->theme.corner_radius = 2.0;
+		}
+
+		range_sliders[0]->text = str8_lit("Seperation Radius");
 		range_sliders[0]->state.norm_ptr = &bp->seperation_range_norm;
-		range_sliders[1]->text = str8_lit("Cohesion Range");
+		range_sliders[1]->text = str8_lit("Cohesion Radius");
 		range_sliders[1]->state.norm_ptr = &bp->cohesion_range_norm;
-		range_sliders[2]->text = str8_lit("Alignment Range");
+		range_sliders[2]->text = str8_lit("Alignment Radius");
 		range_sliders[2]->state.norm_ptr = &bp->alignment_range_norm;
 
 		strength_sliders[0]->text = str8_lit("Seperation Strength");
@@ -741,13 +986,12 @@ UI *ui_test(DeviceVertexBuffer *vb, const SimpleFont *simple_font, FrameEvents f
 
 		misc_sliders[0]->text = str8_lit("Boid Size");
 		misc_sliders[0]->state.norm_ptr = &bp->boid_size_norm;
-		misc_sliders[1]->text = str8_lit("Boid Count");
-		misc_sliders[1]->state.norm_ptr = &bp->boid_count_norm;
-		misc_sliders[2]->text = str8_lit("Pen Range");
+		misc_sliders[1]->text = str8_lit("Randomness");
+		misc_sliders[1]->state.norm_ptr = &bp->randomness_norm;
+		misc_sliders[2]->text = str8_lit("Pen Radius");
 		misc_sliders[2]->state.norm_ptr = &bp->attractor_range_norm;
 
 		ui_poll(ui);
-		ui_draw(ui);
 	}
 	{
 		CursorType cursor = CURSOR_POINTER;
@@ -771,5 +1015,13 @@ UI *ui_test(DeviceVertexBuffer *vb, const SimpleFont *simple_font, FrameEvents f
 	}
 	return ui;
 }
+
+UI *draw_ui_test(UI *ui, DeviceVertexBuffer *vb, const SimpleFont *simple_font)
+{
+	ui_draw(ui, simple_font, vb);
+	return ui;
+}
+
+
 
 

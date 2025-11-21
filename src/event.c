@@ -224,6 +224,7 @@ FrameEvents resolve_frame_events(FrameEvents last, Event *event_ring_buffer, Are
 					case KEY_F11: fe.f11 = set_button(fe.f11, fe.time, pressed); break;
 					case KEY_F12: fe.f12 = set_button(fe.f12, fe.time, pressed); break;
 					case KEY_LEFT_CONTROL: fe.left_control = set_button(fe.left_control, fe.time, pressed); break;
+					case KEY_LEFT_SHIFT: fe.left_shift= set_button(fe.left_shift, fe.time, pressed); break;
 					default:
 					break;
 				}
