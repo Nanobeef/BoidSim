@@ -2,18 +2,6 @@
 #include <simde/x86/avx512.h>
 #include "device_graphics.h"
 
-void generate_cell_mask64()
-{
-	for(u32 i = 0; i < 64; i++)
-	{
-		u32 x = i & 7;
-		u32 y = i >> 3;
-		u32 r = x * x + y * y;
-		u32 d  = (u32)(sqrt((f32)r)) + 1;
-		print("%u32,", d);
-	}
-}
-
 void boid_sim_next_frame(BoidSim *sim)
 {
 	sim->frame_index = (sim->frame_index + 1) % BOID_SIM_FRAME_COUNT;
@@ -118,14 +106,6 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 		.stage = BOID_SIM_STAGE_FILL,
 		.task_size = 1024,		
 		.task_max_count = sim->boid_count,
-		.thread_count =  max_thread_count,
-		.group_size = 16,
-		.group_count = max_thread_count / 16,
-	};
-	sim->stage_params[BOID_SIM_STAGE_CONSTRUCT] = (BoidSimStageParams) {
-		.stage = BOID_SIM_STAGE_CONSTRUCT,
-		.task_size = 64,		
-		.task_max_count = sim->cells_count,
 		.thread_count =  max_thread_count,
 		.group_size = 16,
 		.group_count = max_thread_count / 16,
@@ -300,12 +280,6 @@ void draw_boid_sim_overlay(DeviceVertexBuffer *vb, Camera2 camera, SimpleFont si
 	).str;
 	pos = gdraw_simple_text_box(vb, simple_font, str, text_color, pos_a, pos_b, pos, unit_pixel * 24);
 
-	sp = sim->stage_params[BOID_SIM_STAGE_CONSTRUCT];
-	str = string_print(temp.arena,
-	" Construct: %u64 us\n",
-	sim->stage_times[sp.stage] / 1000
-	).str;
-	pos = gdraw_simple_text_box(vb, simple_font, str, text_color, pos_a, pos_b, pos, unit_pixel * 24);
 
 	sp = sim->stage_params[BOID_SIM_STAGE_RESOLVE];
 	str = string_print(temp.arena,
@@ -522,12 +496,19 @@ void boid_sim_allocate(BoidSimParams *p)
 	u8* pos = sim->arena.pos;
 	pos = forward_align_pointer(pos, 64);
 	u32 global_boid_offset = 0;
+
+	const simde__m128i increment = simde_mm_set_epi32(1,sizeof(fvec2), sizeof(fvec2), 1); 
+
+
+
 	for(u32 i = 0; i < sim->cells_count; i++)
 	{
 		BoidSimCell *cell = sim->cells + i;
-		u32 local_boid_count = sim->cell_counters[i];
+		u64 local_boid_count = sim->cell_counters[i];
 
-		cell->boid_count = local_boid_count;
+		
+		
+
 		cell->global_boid_offset = global_boid_offset;
 		global_boid_offset += local_boid_count;
 
@@ -589,40 +570,6 @@ void boid_sim_fill(BoidSimParams *p)
 	}
 }
 
-
-void boid_sim_construct(BoidSimParams *p)
-{
-	ThreadGroup *tg= enter_thread_group(p, false);
-	BoidSim *sim = p->sim;
-	Task task;
-	while((task = reserve_boid_sim_task(p, tg)).has_work)
-	{
-		for(u32 i = task.index; i < task.count + task.index; i++)
-		{
-			BoidSimCell *cell  = sim->cells + i;
-			simde__m128 avg = simde_mm_set1_ps(0.0);
-
-			for(u32 j = 0; j < cell->boid_count; j++)
-			{
-				simde__m128 vec = simde_mm_set_ps(
-					cell->velocities[j].y,
-					cell->velocities[j].x,
-					cell->positions[j].y,
-					cell->positions[j].x
-				);
-				avg = simde_mm_add_ps(avg, vec);
-			}
-			simde__m128 count = simde_mm_set1_ps((f32)cell->boid_count);
-			avg = simde_mm_div_ps(avg, count);
-
-			align(16) f32 dst[4];
-			simde_mm_store_ps(dst, avg);
-			memcpy(&cell->avg_pos, dst, 8);
-			memcpy(&cell->avg_vel, dst+2, 8);
-
-		}
-	}
-}
 /*
 0000000000011980 <boid_sim_search_average>:
    11980:	55                   	push   %rbp
@@ -685,34 +632,19 @@ u32 boid_sim_search_average(BoidSimParams *p, uvec2 upos, fvec2 orig_pos, fvec2 
 
 			u32 corner_count = 0;
 
-			if(corner_count == 4 && 0)
+			for(u32 i = 0; i < cell->boid_count; i++)
 			{
-				if(out_vel)
+				if(fvec2_distance(orig_pos, cell->positions[i]) < r)
 				{
-					*out_vel = fvec2_add(*out_vel, cell->avg_vel);
-				}
-				if(out_pos)
-				{
-					*out_pos = fvec2_add(*out_pos, cell->avg_pos);
-				}
-				count++;
-			}
-			else if(1)
-			{
-				for(u32 i = 0; i < cell->boid_count; i++)
-				{
-					if(fvec2_distance(orig_pos, cell->positions[i]) < r)
+					if(out_vel)
 					{
-						if(out_vel)
-						{
-							*out_vel = fvec2_add(*out_vel, cell->velocities[i]);
-						}
-						if(out_pos)
-						{
-							*out_pos = fvec2_add(*out_pos, cell->positions[i]);
-						}
-						count++;
+						*out_vel = fvec2_add(*out_vel, cell->velocities[i]);
 					}
+					if(out_pos)
+					{
+						*out_pos = fvec2_add(*out_pos, cell->positions[i]);
+					}
+					count++;
 				}
 			}
 		}
@@ -792,8 +724,8 @@ void boid_sim_resolve(BoidSimParams *p)
 	fvec2 attractor_position = sim->global.attractor_position;
 	f32 attractor_distance = (f32)attractor_range / (f32)U32_MAX;
 
-
-
+	uvec2 *positions = sim->positions;
+	svec2 *velocities= sim->velocities;
 
 	while((task = reserve_boid_sim_task(p, tg)).has_work)
 	{
@@ -807,6 +739,7 @@ void boid_sim_resolve(BoidSimParams *p)
 				fvec2 vel = orig_cell->velocities[j];
 				uvec2 upos = boid_sim_fvec2_to_uvec2(pos);
 				svec2 svel = boid_sim_fvec2_to_svec2(vel);
+
 
 				if(seperation_enable)
 				{
@@ -879,9 +812,7 @@ void boid_sim_resolve(BoidSimParams *p)
 				
 				svel = boid_sim_fvec2_to_svec2(vel);
 
-
 				{
-
 					svec2 rv;
 
 					if(bump_enable)
@@ -1023,9 +954,6 @@ void* boid_sim_thread(Thread *thread)
 			break;
 			case BOID_SIM_STAGE_FILL:
 				boid_sim_fill(p);
-			break;
-			case BOID_SIM_STAGE_CONSTRUCT:
-				boid_sim_construct(p);
 			break;
 			case BOID_SIM_STAGE_RESOLVE:
 				boid_sim_resolve(p);

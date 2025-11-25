@@ -123,8 +123,6 @@ void* create_window_driver_x11(WindowDriverCreateInfo info, Arena *arena)
 	}
 	XDefineCursor(display, window, cursor);
 
-
-
 	XContext user_pointer = XUniqueContext();
 	if(info.window_pointer)
 	{
@@ -174,12 +172,10 @@ void* create_window_driver_x11(WindowDriverCreateInfo info, Arena *arena)
 void destroy_window_driver_x11(void *driver_data)
 {
 	X11WindowDriver *wd = driver_data;
-	
 	XDeleteContext(wd->display,wd->window, wd->user_pointer);
 	XFreeCursor(wd->display, wd->cursor);
 	XDestroyWindow(wd->display, wd->window);
 	XCloseDisplay(wd->display);
-			
 }
 
 void poll_window_driver_x11(void *driver_data, Event *event_ring_buffer)

@@ -22,15 +22,19 @@ typedef union {
 }CellIndex;
 
 typedef struct{
-	u32 global_boid_offset; // For writing the boids back to the array in more cache friendly order.
-	u32 boid_count;
-	fvec2 *positions;
-	fvec2 *velocities;
-
-	fvec2 avg_pos;
-	fvec2 avg_vel;
-
-
+	union{
+		struct{
+			u32 position_offset;
+			u32 velocity_offset;
+			u32 global_boid_offset;
+			u32 boid_count_offset;
+		};
+		struct{
+			fvec2 *positions;
+			fvec2 *velocities;
+			u32 boid_count;
+		};
+	};
 }BoidSimCell align(64);
 
 
@@ -63,7 +67,6 @@ typedef enum{
 	BOID_SIM_STAGE_COUNT,
 	BOID_SIM_STAGE_ALLOCATE,
 	BOID_SIM_STAGE_FILL,
-	BOID_SIM_STAGE_CONSTRUCT,
 	BOID_SIM_STAGE_RESOLVE,
 	BOID_SIM_STAGE_RESET,
 	BOID_SIM_STAGE_MAX,

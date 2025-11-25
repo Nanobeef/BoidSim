@@ -57,34 +57,19 @@ u32 boid_sim_search_average2(BoidSimParams *p, uvec2 upos, fvec2 orig_pos, fvec2
 
 			u32 corner_count = 0;
 
-			if(corner_count == 4 && 0)
+			for(u32 i = 0; i < cell->boid_count; i++)
 			{
-				if(out_vel)
+				if(fvec2_distance(orig_pos, cell->positions[i]) < r)
 				{
-					*out_vel = fvec2_add(*out_vel, cell->avg_vel);
-				}
-				if(out_pos)
-				{
-					*out_pos = fvec2_add(*out_pos, cell->avg_pos);
-				}
-				count++;
-			}
-			else if(1)
-			{
-				for(u32 i = 0; i < cell->boid_count; i++)
-				{
-					if(fvec2_distance(orig_pos, cell->positions[i]) < r)
+					if(out_vel)
 					{
-						if(out_vel)
-						{
-							*out_vel = fvec2_add(*out_vel, cell->velocities[i]);
-						}
-						if(out_pos)
-						{
-							*out_pos = fvec2_add(*out_pos, cell->positions[i]);
-						}
-						count++;
+						*out_vel = fvec2_add(*out_vel, cell->velocities[i]);
 					}
+					if(out_pos)
+					{
+						*out_pos = fvec2_add(*out_pos, cell->positions[i]);
+					}
+					count++;
 				}
 			}
 		}

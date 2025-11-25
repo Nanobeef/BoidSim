@@ -822,7 +822,6 @@ UI *poll_ui_test(UI *ui, FrameEvents fe, uvec2 frame_size, BoidSim *sim)
 					" Count:     %u64 us\n"
 					" Alloc:     %u64 us\n"
 					" Fill:      %u64 us\n"
-					" Construct: %u64 us\n"
 					" Resolve:   %u64 us\n"
 					"Reset:      %u64 us\n"
 					"\n"
@@ -831,7 +830,6 @@ UI *poll_ui_test(UI *ui, FrameEvents fe, uvec2 frame_size, BoidSim *sim)
 					" Count:     %u64 ns\n"
 					" Alloc:     %u64 ns\n"
 					" Fill:      %u64 ns\n"
-					" Construct: %u64 ns\n"
 					" Resolve:   %u64 ns\n"
 					"Reset:      %u64 ns\n"
 					"\n"
@@ -840,7 +838,6 @@ UI *poll_ui_test(UI *ui, FrameEvents fe, uvec2 frame_size, BoidSim *sim)
 					" Count:     %u32 ns (zero)\n"
 					" Alloc:     %u32 ns\n"
 					" Fill:      %u32 ns\n"
-					" Construct: %u32 ns\n"
 					" Resolve:   %u32 ns\n"
 					"Reset:      %u32 ns\n"
 					"\n"
@@ -854,7 +851,6 @@ UI *poll_ui_test(UI *ui, FrameEvents fe, uvec2 frame_size, BoidSim *sim)
 					sim->stage_times[BOID_SIM_STAGE_COUNT] / 1000,
 					sim->stage_times[BOID_SIM_STAGE_ALLOCATE] / 1000,
 					sim->stage_times[BOID_SIM_STAGE_FILL] / 1000,
-					sim->stage_times[BOID_SIM_STAGE_CONSTRUCT] / 1000,
 					sim->stage_times[BOID_SIM_STAGE_RESOLVE] / 1000,
 					sim->stage_times[BOID_SIM_STAGE_RESET] / 1000,
 
@@ -864,7 +860,6 @@ UI *poll_ui_test(UI *ui, FrameEvents fe, uvec2 frame_size, BoidSim *sim)
 					sim->stage_times[BOID_SIM_STAGE_COUNT] / thread_time_divisor,
 					sim->stage_times[BOID_SIM_STAGE_ALLOCATE] / thread_time_divisor,
 					sim->stage_times[BOID_SIM_STAGE_FILL] / thread_time_divisor,
-					sim->stage_times[BOID_SIM_STAGE_CONSTRUCT] / thread_time_divisor,
 					sim->stage_times[BOID_SIM_STAGE_RESOLVE] / thread_time_divisor,
 					sim->stage_times[BOID_SIM_STAGE_RESET] / thread_time_divisor,
 
@@ -872,7 +867,6 @@ UI *poll_ui_test(UI *ui, FrameEvents fe, uvec2 frame_size, BoidSim *sim)
 					0,
 					10,
 					10,
-					30,
 					150,
 					50
 				);

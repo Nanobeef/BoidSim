@@ -173,10 +173,22 @@ typedef struct{
 
 typedef struct{
 	u64 mouse_move_time;
-	s32 mouse_x, mouse_y;
-	s32 mouse_dx, mouse_dy;
-	s32 window_x, window_y;
-	u32 window_width, window_height;
+	union{
+		svec2 mouse_position;
+		struct {s32 mouse_x, mouse_y;};
+	};
+	union{
+		uvec2 mouse_delta;
+		struct {s32 mouse_dx, mouse_dy;};
+	};
+	union{
+		uvec2 window_position;
+		struct {s32 window_x, window_y;};
+	};
+	union{
+		uvec2 window_size;
+		struct {u32 window_width, window_height;};
+	};
 
 	fvec2 norm_mouse;
 	fvec2 norm_mouse_delta;
@@ -206,6 +218,9 @@ typedef struct{
 
 	u64 dt;
 	u64 time;
+
+	f32 screen_refresh_rate;
+	u32 dpi;
 
 	Event *event_ring_buffer;
 }FrameEvents;
