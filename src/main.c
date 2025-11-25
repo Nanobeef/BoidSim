@@ -3,15 +3,7 @@
 extern b32 global_close_window;
 extern b32 global_keep_terminal_open;
 
-#include "device_renderer.h"
-
-#include "device_graphics.h"
-
-#include "math.h"
-
-#include "boid.h"
 #include "ui.h"
-
 
 s32 main()
 {
@@ -52,12 +44,9 @@ s32 main()
 
 	DeviceFence *swapchain_fences = allocate_device_fences(device, frame_count, true, &main_arena);
 	DeviceFence *graphics_fences = allocate_device_fences(device, frame_count, true, &main_arena);
-
 	DeviceSemaphore *swapchain_semaphores = allocate_device_semaphores(device, frame_count, &main_arena);
 	DeviceSemaphore *graphics_semaphores = allocate_device_semaphores(device, frame_count,  &main_arena);
-
 	DeviceQueue graphics_queue = device->main_queue_family->queues[0];
-
 	DeviceCommandPool **graphics_command_pools = arena_alloc(sizeof(DeviceCommandPool) * frame_count,0,0, &main_arena);
 	for(u32 i = 0; i < frame_count; i++)
 	{
@@ -65,7 +54,6 @@ s32 main()
 	}
 		
 	BoidSim* boid_sim = create_boid_sim(device, 1024u * 1024u * 1u, 32, &main_arena);
-
 
 	UI *boid_ui = init_ui_test();
 
