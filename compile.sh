@@ -146,22 +146,20 @@ glsl_compiler="glslc"
 
 compiler="gcc"
 cflags_common="-std=gnu99 -D_GNU_SOURCE"
-cflags_debug="-D DEBUG -O0 -gdwarf -g"
+cflags_debug="-D DEBUG -O0 -g -gdwarf"
 cflags_release="-D RELEASE -O4 -g -gdwarf"
 cflags_final_release="-D RELEASE -O4"
 cflags_profile=""
-#clfags_profile="-p -pg"
+#cflags_profile="-p -pg"
 cflags_include="-I/usr/include/freetype2"
 cflags_warnings="-Wall -Wno-unused-function -Wno-builtin-declaration-mismatch -Wno-strict-aliasing -Wno-unused-variable -Wno-nonnull -Wno-address -Wno-psabi"
 cflags_machine="-march=native"
 
 linker="gcc -fuse-ld=lld"
-lflags_debug="-O0 -gdwarf -g"
-lflags_release="-O4 -flto"
+lflags_debug="-O0"
+lflags_release="-O4"
 #lflags_profile="-p -pg"
 lflags_profile=""
-#lflags_machine="-march=native"
-#lflags_machine="-march=x86-64"
 lflags_libs="-lm -lc -lpthread -latomic -lX11 -lXext -lXpresent -lvulkan -levdev -lasound -lfreetype"
 
 # Build Stages
@@ -227,7 +225,7 @@ compile_stage(){
 	if [ "$build_mode" = "release" ]; then
 		cflags+=" $cflags_release"	
 	else
-		cflags+=" $clfags_debug"
+		cflags+=" $cflags_debug"
 	fi
 
 	declare -a CFILES=()
@@ -314,6 +312,9 @@ run_single_build(){
 		compile_stage
 	time_next "Linking:"
 		link_stage
+
+		objdump -d $target_binary > build/dump.txt
+
 	time_last "Done"
 }
 
