@@ -1,8 +1,8 @@
 #version 450
 #pragma shader_stage(vertex)
 
-layout(location = 0) in uvec2 in_position;
-layout(location = 1) in ivec2 in_velocity;
+layout(location = 0) in vec2 in_position;
+layout(location = 1) in vec2 in_velocity;
 
 layout(location = 0) out vec4 out_color;
 layout(location = 1) out vec2 out_velocity;
@@ -18,26 +18,14 @@ const vec2 center = vec2(0.0, 0.25);
 
 void main()
 {
-	vec2 velocity;
-	{
-		velocity = vec2(in_velocity);
-	}
+	vec2 velocity = in_velocity;
 
-	vec2 position;
-	{
-		// This needs to change for larger worlds
-		uvec2 pos = in_position;
-
-		position.x = float(pos.x);
-		position.y = float(pos.y);
-		position -= 2147483647.0;
-		position /= (4294967295.0);
-
-	}
+	vec2 position = in_position;
+	position -= vec2(0.5);
 
 	vec2 u = normalize(velocity);
-	u.y = -u.y;
 
+	u.y = -u.y;
 
 	vec2 p = vertices[gl_VertexIndex % 3];
 
@@ -54,7 +42,7 @@ void main()
 
 	out_color = pc.color;
 	if(false){
-		float index = float(gl_InstanceIndex) / (1024 * 1024);;
+		float index = float(gl_InstanceIndex) / (32*1024);;
 		out_color = vec4(index,  1.0 - index,0.0,  1.0);
 	}
 }

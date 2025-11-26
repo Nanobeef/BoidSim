@@ -14,41 +14,17 @@ typedef struct{
 	s16 x,y;
 }s16vec2;
 
-typedef union {
-	struct{
-		u16 cell, index;
-	};
-	u32 offset;
+typedef struct{
+	u16 cell;
+	u16 index;
 }CellIndex;
 
 typedef struct{
-	union{
-		struct{
-			u32 position_offset;
-			u32 velocity_offset;
-			u32 global_boid_offset;
-			u32 boid_count_offset;
-		};
-		struct{
-			fvec2 *positions;
-			fvec2 *velocities;
-			u32 boid_count;
-		};
-	};
-}BoidSimCell align(64);
-
-
-static const align(64) u8 cell_distance_mask64[64] = 
-{
-	1,2,3,4,5,6,7,8,
-	2,2,3,4,5,6,7,8,
-	3,3,3,4,5,6,7,8,
-	4,4,4,5,6,6,7,8,
-	5,5,5,6,6,7,8,9,
-	6,6,6,6,7,8,8,9,
-	7,7,7,7,8,8,9,10,
-	8,8,8,8,9,9,10,10,
-};
+	fvec2 *positions;
+	fvec2 *velocities;
+	u64 boid_count;
+	u64 padding; // Do not remove
+}BoidSimCell;
 
 typedef struct{
 	u32 thread_count;
@@ -120,14 +96,14 @@ typedef struct{
 	DeviceBuffer position_device_buffers[BOID_SIM_FRAME_COUNT];
 	DeviceBuffer velocity_device_buffers[BOID_SIM_FRAME_COUNT];
 
-	uvec2* frame_positions[BOID_SIM_FRAME_COUNT];
-	svec2* frame_velocities[BOID_SIM_FRAME_COUNT];
+	fvec2* frame_positions[BOID_SIM_FRAME_COUNT];
+	fvec2* frame_velocities[BOID_SIM_FRAME_COUNT];
 
-	uvec2* positions;
-	svec2* velocities;
+	fvec2* positions;
+	fvec2* velocities;
 
-	uvec2* next_positions;
-	svec2* next_velocities;
+	fvec2* next_positions;
+	fvec2* next_velocities;
 
 	LoopTime loop_time;
 	u64 start_time, end_time;

@@ -357,12 +357,12 @@ DeviceRenderer create_device_renderer(Device *device, DeviceRendererCreateInfo *
 		VkVertexInputBindingDescription boid_bindings[] = {
 			{
 				.binding = 0,
-				.stride = sizeof(uvec2),
+				.stride = sizeof(fvec2),
 				.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE,
 			},
 			{
 				.binding = 1,
-				.stride = sizeof(s32) * 2,
+				.stride = sizeof(fvec2),
 				.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE,
 			},
 		};
@@ -371,13 +371,13 @@ DeviceRenderer create_device_renderer(Device *device, DeviceRendererCreateInfo *
 			{
 				.binding = 0,
 				.location = 0,
-				.format = VK_FORMAT_R32G32_UINT,
+				.format = VK_FORMAT_R32G32_SFLOAT,
 				.offset = 0,
 			},
 			{
 				.binding = 1,
 				.location = 1,
-				.format = VK_FORMAT_R32G32_SINT,
+				.format = VK_FORMAT_R32G32_SFLOAT,
 				.offset = 0,
 			},
 		};

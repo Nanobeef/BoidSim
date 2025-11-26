@@ -2,15 +2,6 @@
 #include <simde/x86/avx512.h>
 #include "device_graphics.h"
 
-void boid_sim_next_frame(BoidSim *sim)
-{
-	sim->frame_index = (sim->frame_index + 1) % BOID_SIM_FRAME_COUNT;
-	sim->next_frame_index = (sim->frame_index + 1) % BOID_SIM_FRAME_COUNT;
-	sim->positions = sim->frame_positions[sim->frame_index];
-	sim->velocities = sim->frame_velocities[sim->frame_index];
-	sim->next_positions = sim->frame_positions[sim->next_frame_index];
-	sim->next_velocities = sim->frame_velocities[sim->next_frame_index];
-}
 
 void* boid_sim_thread(Thread *thread);
 BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_count, Arena *arena)
@@ -112,8 +103,8 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 	};
 	sim->stage_params[BOID_SIM_STAGE_RESOLVE] = (BoidSimStageParams) {
 		.stage = BOID_SIM_STAGE_RESOLVE,
-		.task_size = 8,		
-		.task_max_count = sim->cells_count,
+		.task_size = 1024,
+		.task_max_count = sim->boid_count,
 		.thread_count =  max_thread_count,
 		.group_size = 16,
 		.group_count = max_thread_count / 16,
@@ -163,8 +154,10 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 		sim->frame_velocities[i] = sim->velocity_device_buffers[i].memory.mapping;
 	}
 
-	boid_sim_next_frame(sim);
-	boid_sim_next_frame(sim);
+	sim->positions = sim->frame_positions[0];
+	sim->velocities = sim->frame_velocities[0];
+	sim->next_positions = sim->frame_positions[1];
+	sim->next_velocities = sim->frame_velocities[1];
 
 	for(u32 i = 0; i < max_thread_count; i++)
 	{
@@ -398,8 +391,8 @@ Task reserve_boid_sim_task(BoidSimParams *p, ThreadGroup *group)
 void boid_sim_reset(BoidSimParams *p)
 {
 	Task task;
-	uvec2 *pos=  p->sim->next_positions;
-	svec2 *vel=  p->sim->next_velocities;
+	fvec2 *pos=  p->sim->positions;
+	fvec2 *vel=  p->sim->velocities;
 	PRNG rg = init_prng(p->global_index + p->sim->tick_accum + get_time_ns());
 
 	ThreadGroup *thread_group = enter_thread_group(p, false);
@@ -408,8 +401,15 @@ void boid_sim_reset(BoidSimParams *p)
 	{
 		if(1)
 		{
-			prng_memset(&rg, &pos[task.index], sizeof(uvec2) * task.count);
-			prng_memset(&rg, &vel[task.index], sizeof(svec2) * task.count);
+			for(u32 i = task.index; i < task.count + task.index; i++)
+			{
+				uvec2 upos;
+				svec2 svel;
+				prng_memset(&rg, &upos, sizeof(uvec2));
+				prng_memset(&rg, &svel, sizeof(svec2));
+				pos[i] = boid_sim_uvec2_to_fvec2(upos);
+				vel[i] = boid_sim_svec2_to_fvec2(svel);
+			}
 		}
 		else
 		{
@@ -425,16 +425,12 @@ void boid_sim_reset(BoidSimParams *p)
 					sx = S32_MAX - *(s32*)&x;
 					sy = S32_MAX - *(s32*)&y;
 				}while((sx * sx + sy * sy > r * r));
-				pos[i] = uvec2_make(x,y);
-				vel[i] = svec2_make(-sx,-sy);
+				const u32 rsh = 16;
+
+				pos[i] = boid_sim_uvec2_to_fvec2(uvec2_make(x,y));
+				vel[i] = boid_sim_svec2_to_fvec2(svec2_rsh(svec2_make(-sx,-sy), rsh));
 			}
 			
-		}
-		for(u32 i = task.index; i < task.count + task.index; i++)
-		{
-			const u32 rsh = 16;
-			vel[i].x >>= rsh;
-			vel[i].y >>= rsh;
 		}
 		continue;
 
@@ -468,13 +464,14 @@ void boid_sim_count(BoidSimParams *p)
 
 	barrier_wait(tg->all_barrier);
 
-	uvec2 *pos=  sim->positions;
+	fvec2 *pos=  sim->positions;
 	while((task = reserve_boid_sim_task(p, tg)).has_work)
 	{
 		for(u32 i = task.index; i < task.count + task.index; i++)
 		{
-			u32 x = pos[i].x >> sim->cells_width_rsh;
-			u32 y = pos[i].y >> sim->cells_height_rsh;
+			uvec2 upos = boid_sim_fvec2_to_uvec2(pos[i]);
+			u32 x = upos.x >> sim->cells_width_rsh;
+			u32 y = upos.y >> sim->cells_height_rsh;
 			u32 boid_cell_index = x + y * sim->cells_width;
 			if((boid_cell_index >= cells_start) && (boid_cell_index < cells_end))
 			{
@@ -490,35 +487,59 @@ void boid_sim_count(BoidSimParams *p)
 void boid_sim_allocate(BoidSimParams *p)
 {
 	BoidSim *sim = p->sim;
-	const u64 fixed_size = sizeof(BoidSimCell);
-	const u64 size_per_boid = sizeof(svec2) + sizeof(uvec2);
-	arena_raw(&sim->arena, true);
-	u8* pos = sim->arena.pos;
-	pos = forward_align_pointer(pos, 64);
-	u32 global_boid_offset = 0;
 
-	const simde__m128i increment = simde_mm_set_epi32(1,sizeof(fvec2), sizeof(fvec2), 1); 
+	fvec2 *positions = sim->next_positions;
+	fvec2 *velocities = sim->next_velocities;
 
-
-
-	for(u32 i = 0; i < sim->cells_count; i++)
+	if(0)
 	{
-		BoidSimCell *cell = sim->cells + i;
-		u64 local_boid_count = sim->cell_counters[i];
+		u64 boid_count = 0;
+		// Volatile makes it not crash?
+		volatile u32 global_boid_offset = 0;
 
-		
-		
+		for(u32 i = 0; i < sim->cells_count; i++)
+		{
+			BoidSimCell *cell = sim->cells + i;
+			boid_count = sim->cell_counters[i];
 
-		cell->global_boid_offset = global_boid_offset;
-		global_boid_offset += local_boid_count;
-
-		cell->positions = (fvec2*)pos;
-		pos += sizeof(fvec2) * local_boid_count;
-		cell->velocities = (fvec2*)pos;
-		pos += sizeof(fvec2) * local_boid_count;
+			cell->boid_count = boid_count;
+			cell->positions = positions + global_boid_offset;
+			cell->velocities = velocities + global_boid_offset;
+			global_boid_offset += boid_count;
+		}
 	}
-	sim->arena.pos = pos;
-	arena_raw(&sim->arena, false);
+	else
+	{
+		// Saves around 35 us (10% speedup) ... rough
+		simde__m256i indices = simde_mm256_set_epi64x((u64)sim->cells,(u64)sim->cell_counters,(u64)velocities, (u64)positions);
+		simde__m256i indices_lsh = simde_mm256_set_epi64x(5,1,3,3);
+		simde__m512i one_src = simde_mm512_set1_epi64(1);
+		simde__mmask8 count_mask = 0b00000011;
+		BoidSimCell *last_cell = sim->cells + sim->cells_count;
+
+		BoidSimCell *current_cell = sim->cells;
+		align(64) u64 dst[8];
+		simde_mm256_storeu_epi64(dst, indices);
+		{
+			current_cell = (void*)dst[3];
+			current_cell->boid_count = (u64)((u16*)dst[2])[0];
+			current_cell->velocities = (void*)dst[1];
+			current_cell->positions = (void*)dst[0];
+		}
+
+		u64 boid_count = 0;
+		do{
+			simde__m256i cnt = simde_mm512_castsi512_si256(simde_mm512_mask_set1_epi64(one_src, count_mask, current_cell->boid_count));
+			simde__m256i inc  = simde_mm256_sllv_epi64(cnt, indices_lsh);
+			indices = simde_mm256_add_epi64(indices, inc);
+			simde_mm256_storeu_epi64(dst, indices);
+			simde__m128i vectors = simde_mm256_castsi256_si128(indices);
+
+			current_cell = (void*)dst[3];
+			current_cell->boid_count = (u64)((u16*)dst[2])[0];
+			_mm_store_epi64(current_cell, vectors);
+		}while(current_cell < last_cell);
+	}
 }
 
 fvec2 boid_sim_uvec2_to_fvec2(uvec2 u)
@@ -556,16 +577,13 @@ void boid_sim_fill(BoidSimParams *p)
 	Task task;
 	BoidSim *sim = p->sim;
 
-	uvec2 *pos=  sim->positions;
-	svec2 *vel=  sim->velocities;
 	while((task = reserve_boid_sim_task(p, tg)).has_work)
 	{
 		for(u32 i = task.index; i < task.count + task.index; i++)
 		{
-			CellIndex *cell_index = sim->cell_indices + i;
-			BoidSimCell *cell  = sim->cells + cell_index->cell;
-			cell->positions[cell_index->index] = boid_sim_uvec2_to_fvec2(pos[i]);
-			cell->velocities[cell_index->index] = boid_sim_svec2_to_fvec2(vel[i]);
+			CellIndex cell_index = sim->cell_indices[i];
+			sim->cells[cell_index.cell].positions[cell_index.index] = sim->positions[i];
+			sim->cells[cell_index.cell].velocities[cell_index.index] = sim->velocities[i];
 		}
 	}
 }
@@ -672,7 +690,6 @@ void boid_sim_resolve(BoidSimParams *p)
 	Task task;
 
 	PRNG *rg = &p->prng;
-
 	
 	f32 pw = 2;
 	f32 seperation_strength = powf(sim->global.seperation_strength_norm, pw);
@@ -683,16 +700,13 @@ void boid_sim_resolve(BoidSimParams *p)
 	u32 cohesion_range = (u32)(powf(sim->global.cohesion_range_norm,pw) * (f32)(1<<24));
 	u32 alignment_range = (u32)(powf(sim->global.alignment_range_norm,pw) * (f32)(1<<24));
 
-
 	b32 seperation_enable = true;
 	b32 cohesion_enable = true;
 	b32 alignment_enable = true;
 	b32 limit_speed = true;
 
 	f32 randomness = sim->global.randomness_norm;
-
 	b32 bump_enable = sim->global.bump_enable;
-
 
 	if(seperation_strength == 0.0f || seperation_range == 0)
 	{
@@ -709,10 +723,7 @@ void boid_sim_resolve(BoidSimParams *p)
 	if(sim->global.min_speed_norm == 0.0f && sim->global.max_speed_norm == 1.0f)
 	{
 		limit_speed = false;
-
 	}
-
-
 
 	f32 min_speed = powf(sim->global.min_speed_norm,pw) * 0.01;
 	f32 max_speed = powf(sim->global.max_speed_norm,pw) * 0.01;
@@ -724,129 +735,128 @@ void boid_sim_resolve(BoidSimParams *p)
 	fvec2 attractor_position = sim->global.attractor_position;
 	f32 attractor_distance = (f32)attractor_range / (f32)U32_MAX;
 
-	uvec2 *positions = sim->positions;
-	svec2 *velocities= sim->velocities;
+
+	if(0)
+	{
+		seperation_enable = false;
+		cohesion_enable = false;
+		alignment_enable = false;
+		limit_speed = false;
+	}
 
 	while((task = reserve_boid_sim_task(p, tg)).has_work)
 	{
 		for(u32 i = task.index; i < task.count + task.index; i++)
 		{
-			BoidSimCell *orig_cell  = sim->cells + i;
-			for(u32 j = 0; j < orig_cell->boid_count; j++)
-			{
 			// Read
-				fvec2 pos = orig_cell->positions[j];
-				fvec2 vel = orig_cell->velocities[j];
-				uvec2 upos = boid_sim_fvec2_to_uvec2(pos);
-				svec2 svel = boid_sim_fvec2_to_svec2(vel);
+			fvec2 pos = sim->next_positions[i];
+			fvec2 vel = sim->next_velocities[i];
 
+			uvec2 upos = boid_sim_fvec2_to_uvec2(pos);
+			svec2 svel = boid_sim_fvec2_to_svec2(vel);
 
-				if(seperation_enable)
+			if(seperation_enable)
+			{
+				fvec2 average;
+				u32 count = boid_sim_search_average(p, upos, pos, vel, seperation_range, &average, 0);
+				if(count)
 				{
-					fvec2 average;
-					u32 count = boid_sim_search_average(p, upos, pos, vel, seperation_range, &average, 0);
-					if(count)
+					f32 distance = fvec2_distance(pos, average);
+					f32 factor = 1.0;
+					if(distance > 1e-4)
 					{
-						f32 distance = fvec2_distance(pos, average);
-						f32 factor = 1.0;
-						if(distance > 1e-4)
-						{
-							factor = 1.0 / (distance * 1e3);
-						}
-						
-						average = fvec2_sub(pos, average);
-						average = fvec2_scalar_mul(average, seperation_strength * factor);
-						vel = fvec2_add(vel, average);
+						factor = 1.0 / (distance * 1e3);
 					}
+					
+					average = fvec2_sub(pos, average);
+					average = fvec2_scalar_mul(average, seperation_strength * factor);
+					vel = fvec2_add(vel, average);
 				}
-				if(cohesion_enable)
-				{
-					fvec2 average;
-					u32 count = boid_sim_search_average(p, upos, pos, vel, cohesion_range, &average, 0);
-					if(count)
-					{
-						f32 distance = fvec2_distance(pos, average);
-						f32 factor = 1.0;
-						if(distance > 1e-4)
-						{
-							factor = 1.0 / (distance * 1e3);
-						}
-						average = fvec2_sub(pos, average);
-						average = fvec2_scalar_mul(average, cohesion_strength * factor);
-						vel = fvec2_sub(vel, average);
-					}
-				}
-				if(alignment_enable)
-				{
-					fvec2 average;
-					u32 count = boid_sim_search_average(p, upos, pos, vel, alignment_range, 0, &average);
-					if(count)
-					{
-						vel = fvec2_lerp(vel, average, alignment_strength);
-					}
-				}
-
-				if(attractor_enable)
-				{
-					while(fvec2_distance(pos, attractor_position) < attractor_distance)
-					{
-						fvec2 dir = fvec2_unit(fvec2_sub(attractor_position, pos));	
-						u64 rand = random_u64(rg);
-						memcpy(&upos, &rand, 8);
-						pos = boid_sim_uvec2_to_fvec2(upos);
-					}
-				}
-
-				if(limit_speed)
-				{
-					f32 speed = fvec2_magnitude(vel);
-					if(speed > max_speed)
-					{
-						vel = fvec2_scalar_mul(vel, 1.0-acceleration);
-					}
-					if(speed < min_speed)
-					{
-						vel = fvec2_scalar_mul(vel, 1.0+acceleration);
-					}
-				}
-				
-				svel = boid_sim_fvec2_to_svec2(vel);
-
-				{
-					svec2 rv;
-
-					if(bump_enable)
-					{
-						u64 u = random_u64(rg);
-						memcpy(&rv, &u, 8);
-						u32 rsh = 10;
-						rv = svec2_rsh(rv, rsh);
-						svel = svec2_add(svel, rv);
-					}
-					else if(randomness != 0.0f)
-					{
-						u64 u = random_u64(rg);
-						memcpy(&rv, &u, 8);
-						u32 rsh = 12;
-						rv = svec2_rsh(rv, rsh);
-						rv = svec2_cast_fvec2(
-							fvec2_scalar_mul(fvec2_cast_svec2(rv), randomness)
-						);
-						svel = svec2_add(svel, rv);
-					}
-				}
-
-			// Update
-				{
-					upos.x += svel.x;
-					upos.y += svel.y;
-				}
-
-			// Write
-				u32 o = orig_cell->global_boid_offset + j;
-				sim->next_positions[o] = upos;
-				sim->next_velocities[o] = svel;
 			}
+			if(cohesion_enable)
+			{
+				fvec2 average;
+				u32 count = boid_sim_search_average(p, upos, pos, vel, cohesion_range, &average, 0);
+				if(count)
+				{
+					f32 distance = fvec2_distance(pos, average);
+					f32 factor = 1.0;
+					if(distance > 1e-4)
+					{
+						factor = 1.0 / (distance * 1e3);
+					}
+					average = fvec2_sub(pos, average);
+					average = fvec2_scalar_mul(average, cohesion_strength * factor);
+					vel = fvec2_sub(vel, average);
+				}
+			}
+			if(alignment_enable)
+			{
+				fvec2 average;
+				u32 count = boid_sim_search_average(p, upos, pos, vel, alignment_range, 0, &average);
+				if(count)
+				{
+					vel = fvec2_lerp(vel, average, alignment_strength);
+				}
+			}
+
+			if(limit_speed)
+			{
+				f32 speed = fvec2_magnitude(vel);
+				if(speed > max_speed)
+				{
+					vel = fvec2_scalar_mul(vel, 1.0-acceleration);
+				}
+				if(speed < min_speed)
+				{
+					vel = fvec2_scalar_mul(vel, 1.0+acceleration);
+				}
+			}
+
+			svel = boid_sim_fvec2_to_svec2(vel);
+
+
+			if(bump_enable)
+			{
+				svec2 rv;
+				u64 u = random_u64(rg);
+				memcpy(&rv, &u, 8);
+				u32 rsh = 10;
+				rv = svec2_rsh(rv, rsh);
+				svel = svec2_add(svel, rv);
+			}
+			else if(randomness != 0.0f)
+			{
+				svec2 rv;
+				u64 u = random_u64(rg);
+				memcpy(&rv, &u, 8);
+				u32 rsh = 12;
+				rv = svec2_rsh(rv, rsh);
+				rv = svec2_cast_fvec2(
+					fvec2_scalar_mul(fvec2_cast_svec2(rv), randomness)
+				);
+				svel = svec2_add(svel, rv);
+			}
+
+
+			svel = svec2_rsh(svel, 1);
+			upos.x += svel.x;
+			upos.y += svel.y;
+			pos = boid_sim_uvec2_to_fvec2(upos);
+			if(attractor_enable)
+			{
+				while(fvec2_distance(pos, attractor_position) < attractor_distance)
+				{
+					fvec2 dir = fvec2_unit(fvec2_sub(attractor_position, pos));	
+					u64 rand = random_u64(rg);
+					memcpy(&upos, &rand, 8);
+					pos = boid_sim_uvec2_to_fvec2(upos);
+				}
+			}
+
+		
+			sim->positions[i] = pos;
+			sim->velocities[i] = vel;
 		}
 	}
 }
@@ -890,6 +900,7 @@ void* boid_sim_thread(Thread *thread)
 					sim->stage_params[BOID_SIM_STAGE_COUNT].task_max_count = sim->boid_count;
 					sim->stage_params[BOID_SIM_STAGE_ALLOCATE].task_max_count = sim->boid_count;
 					sim->stage_params[BOID_SIM_STAGE_FILL].task_max_count = sim->boid_count;
+					sim->stage_params[BOID_SIM_STAGE_RESOLVE].task_max_count = sim->boid_count;
 					sim->stage_params[BOID_SIM_STAGE_RESET].task_max_count = sim->boid_count;
 				}
 			}
@@ -905,7 +916,7 @@ void* boid_sim_thread(Thread *thread)
 			{
 				reset_arena(&sim->arena);
 				stage = (BoidSimStage)0;	
-				boid_sim_next_frame(sim);
+				sim->frame_index = (sim->frame_index + 1) % BOID_SIM_FRAME_COUNT;
 				atomic_fetch_add(&sim->tick_accum, 1);
 			}
 			{
