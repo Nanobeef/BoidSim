@@ -3,3 +3,5 @@
 gmon.out
 /bin/*spv
 /BoidSim
+perf.data
+perf.data.old
