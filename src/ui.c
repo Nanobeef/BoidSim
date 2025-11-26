@@ -819,7 +819,6 @@ UI *poll_ui_test(UI *ui, FrameEvents fe, uvec2 frame_size, BoidSim *sim)
 					"FPS: %f32\n"
 					"UPS: %f32\n"
 					"Update:     %u64 us\n"
-					" Count:     %u64 us\n"
 					" Alloc:     %u64 us\n"
 					" Fill:      %u64 us\n"
 					" Resolve:   %u64 us\n"
@@ -827,7 +826,6 @@ UI *poll_ui_test(UI *ui, FrameEvents fe, uvec2 frame_size, BoidSim *sim)
 					"\n"
 					"Thread Time per Boid (%u64)\n"
 					"Update:     %u64 ns\n"
-					" Count:     %u64 ns\n"
 					" Alloc:     %u64 ns\n"
 					" Fill:      %u64 ns\n"
 					" Resolve:   %u64 ns\n"
@@ -835,7 +833,6 @@ UI *poll_ui_test(UI *ui, FrameEvents fe, uvec2 frame_size, BoidSim *sim)
 					"\n"
 					"Goal:(1M at 144ups) (7ms)\n"
 					"Update:     %u32 ns\n"
-					" Count:     %u32 ns (zero)\n"
 					" Alloc:     %u32 ns\n"
 					" Fill:      %u32 ns\n"
 					" Resolve:   %u32 ns\n"
@@ -848,7 +845,6 @@ UI *poll_ui_test(UI *ui, FrameEvents fe, uvec2 frame_size, BoidSim *sim)
 					1000000000.0f / (f32)sim->elapsed_time,
 					
 					sim->elapsed_time / 1000,
-					sim->stage_times[BOID_SIM_STAGE_COUNT] / 1000,
 					sim->stage_times[BOID_SIM_STAGE_ALLOCATE] / 1000,
 					sim->stage_times[BOID_SIM_STAGE_FILL] / 1000,
 					sim->stage_times[BOID_SIM_STAGE_RESOLVE] / 1000,
@@ -857,7 +853,6 @@ UI *poll_ui_test(UI *ui, FrameEvents fe, uvec2 frame_size, BoidSim *sim)
 					sim->thread_count,
 
 					sim->elapsed_time / thread_time_divisor,
-					sim->stage_times[BOID_SIM_STAGE_COUNT] / thread_time_divisor,
 					sim->stage_times[BOID_SIM_STAGE_ALLOCATE] / thread_time_divisor,
 					sim->stage_times[BOID_SIM_STAGE_FILL] / thread_time_divisor,
 					sim->stage_times[BOID_SIM_STAGE_RESOLVE] / thread_time_divisor,

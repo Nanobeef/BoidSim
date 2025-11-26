@@ -40,7 +40,6 @@ typedef struct{
 }ThreadGroup;
 
 typedef enum{
-	BOID_SIM_STAGE_COUNT,
 	BOID_SIM_STAGE_ALLOCATE,
 	BOID_SIM_STAGE_FILL,
 	BOID_SIM_STAGE_RESOLVE,

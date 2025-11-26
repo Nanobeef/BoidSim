@@ -76,15 +76,6 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 		sim->thread_params[i].prng = init_prng((i+2) * 2324222);
 	}
 
-	sim->stage_params[BOID_SIM_STAGE_COUNT] = (BoidSimStageParams) {
-		.stage = BOID_SIM_STAGE_COUNT,
-		.task_size = 1024,		
-		.task_max_count = sim->boid_count,
-		.thread_count =  max_thread_count,
-		.group_size = 16,
-		.group_count = max_thread_count / 16,
-	};
-
 	sim->stage_params[BOID_SIM_STAGE_ALLOCATE] = (BoidSimStageParams) {
 		.stage = BOID_SIM_STAGE_ALLOCATE,
 		.task_size = 1024,		
@@ -178,8 +169,8 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 // Stages
 	{
 		
-		sim->cell_counters = arena_alloc(sim->cells_count * sizeof(u16), PAGE_SIZE, 0, arena);
-		sim->cell_indices = arena_alloc(sim->max_boid_count * sizeof(CellIndex), PAGE_SIZE, 0, arena);
+		sim->cell_counters = arena_alloc(sim->cells_count * sizeof(u16), PAGE_SIZE, true, arena);
+		sim->cell_indices = arena_alloc(sim->max_boid_count * sizeof(CellIndex), PAGE_SIZE, true, arena);
 	}	
 //
 	{
@@ -249,15 +240,6 @@ void draw_boid_sim_overlay(DeviceVertexBuffer *vb, Camera2 camera, SimpleFont si
 //	" Fill:     %u64 us \t* %u32 threads = %u64 us\n"
 //	" Resolve:  %u64 us \t* %u32 threads = %u64 us\n"
 
-	sp = sim->stage_params[BOID_SIM_STAGE_COUNT];
-	str = (u8*)string_print(temp.arena, 
-	"Update:     %u64 us\n"
-	" Count:     %u64 us\n"
-	,
-	sim->elapsed_time / 1000, 
-	sim->stage_times[sp.stage] / 1000
-	).str;
-	pos = gdraw_simple_text_box(vb, simple_font, str, text_color, pos_a, pos_b, pos, unit_pixel * 24);
 
 	sp = sim->stage_params[BOID_SIM_STAGE_ALLOCATE];
 	str = string_print(temp.arena,
@@ -388,14 +370,55 @@ Task reserve_boid_sim_task(BoidSimParams *p, ThreadGroup *group)
 	return task;
 }
 
+void boid_sim_count(BoidSimParams *p)
+{
+	ThreadGroup *tg = enter_thread_group(p, true);
+	Task task;
+	BoidSim *sim = p->sim;
+
+
+	u32 cells_count = sim->cells_count / tg->group_count;
+	u32 cells_start = cells_count * tg->group_index;
+	u32 cells_end = cells_start + cells_count;
+
+
+	fvec2 *pos=  sim->positions;
+	while((task = reserve_boid_sim_task(p, tg)).has_work)
+	{
+		for(u32 i = task.index; i < task.count + task.index; i++)
+		{
+			uvec2 upos = boid_sim_fvec2_to_uvec2(pos[i]);
+			u32 x = upos.x >> sim->cells_width_rsh;
+			u32 y = upos.y >> sim->cells_height_rsh;
+			u32 boid_cell_index = x + y * sim->cells_width;
+			if((boid_cell_index >= cells_start) && (boid_cell_index < cells_end))
+			{
+				atomic u16 *cell  = sim->cell_counters + boid_cell_index;
+				u16 current_count = atomic_fetch_add_explicit(cell, 1, memory_order_relaxed); // explicit does not help much
+				sim->cell_indices[i].index = current_count;
+				sim->cell_indices[i].cell = boid_cell_index;
+			}
+		}
+	}
+}
+
+
 void boid_sim_reset(BoidSimParams *p)
 {
 	Task task;
+	BoidSim *sim = p->sim;
 	fvec2 *pos=  p->sim->positions;
 	fvec2 *vel=  p->sim->velocities;
 	PRNG rg = init_prng(p->global_index + p->sim->tick_accum + get_time_ns());
 
 	ThreadGroup *thread_group = enter_thread_group(p, false);
+
+	b32 is_first_thread = false;
+
+	if(p->global_index == 0)
+	{
+		memzero(sim->cell_counters, sim->cells_count * sizeof(*sim->cell_counters));
+	}
 
 	while((task = reserve_boid_sim_task(p, thread_group)).has_work)
 	{
@@ -443,46 +466,13 @@ void boid_sim_reset(BoidSimParams *p)
 			vel[i].x = 0;
 		}
 	}
+
+	is_first_thread = barrier_wait(sim->all_barriers[atomic_load(&sim->thread_count)-1]);
+	boid_sim_count(p);
+
+
 }
 
-void boid_sim_count(BoidSimParams *p)
-{
-	ThreadGroup *tg = enter_thread_group(p, true);
-	Task task;
-	BoidSim *sim = p->sim;
-
-
-	u32 cells_count = sim->cells_count / tg->group_count;
-	u32 cells_start = cells_count * tg->group_index;
-	u32 cells_end = cells_start + cells_count;
-
-	{
-		u32 cells_per_thread = cells_count / tg->thread_count;
-		u32 pos = cells_per_thread * p->local_index + cells_start;
-		memzero(sim->cell_counters + pos, cells_per_thread * sizeof(*sim->cell_counters));
-	}
-
-	barrier_wait(tg->all_barrier);
-
-	fvec2 *pos=  sim->positions;
-	while((task = reserve_boid_sim_task(p, tg)).has_work)
-	{
-		for(u32 i = task.index; i < task.count + task.index; i++)
-		{
-			uvec2 upos = boid_sim_fvec2_to_uvec2(pos[i]);
-			u32 x = upos.x >> sim->cells_width_rsh;
-			u32 y = upos.y >> sim->cells_height_rsh;
-			u32 boid_cell_index = x + y * sim->cells_width;
-			if((boid_cell_index >= cells_start) && (boid_cell_index < cells_end))
-			{
-				atomic u16 *cell  = sim->cell_counters + boid_cell_index;
-				u16 current_count = atomic_fetch_add_explicit(cell, 1, memory_order_relaxed); // explicit does not help much
-				sim->cell_indices[i].index = current_count;
-				sim->cell_indices[i].cell = boid_cell_index;
-			}
-		}
-	}
-}
 
 void boid_sim_allocate(BoidSimParams *p)
 {
@@ -582,6 +572,10 @@ void boid_sim_fill(BoidSimParams *p)
 		for(u32 i = task.index; i < task.count + task.index; i++)
 		{
 			CellIndex cell_index = sim->cell_indices[i];
+			if(cell_index.index == 0)
+			{
+				atomic_store_explicit(sim->cell_counters + cell_index.cell, 0, memory_order_relaxed);
+			}
 			sim->cells[cell_index.cell].positions[cell_index.index] = sim->positions[i];
 			sim->cells[cell_index.cell].velocities[cell_index.index] = sim->velocities[i];
 		}
@@ -857,8 +851,22 @@ void boid_sim_resolve(BoidSimParams *p)
 		
 			sim->positions[i] = pos;
 			sim->velocities[i] = vel;
-		}
-	}
+
+
+			// Count stage
+			{
+				u32 x = upos.x >> sim->cells_width_rsh;
+				u32 y = upos.y >> sim->cells_height_rsh;
+				u32 boid_cell_index = x + y * sim->cells_width;
+				{
+					atomic u16 *cell  = sim->cell_counters + boid_cell_index;
+					u16 current_count = atomic_fetch_add_explicit(cell, 1, memory_order_relaxed); // explicit does not help much
+					sim->cell_indices[i].index = current_count;
+					sim->cell_indices[i].cell = boid_cell_index;
+				}
+			}
+		}  // for i
+	} // while task
 }
 
 void* boid_sim_thread(Thread *thread)
@@ -897,7 +905,6 @@ void* boid_sim_thread(Thread *thread)
 				{
 					atomic_store(&sim->tick_accum, 0);
 					sim->boid_count = sim->global.boid_count_uint;
-					sim->stage_params[BOID_SIM_STAGE_COUNT].task_max_count = sim->boid_count;
 					sim->stage_params[BOID_SIM_STAGE_ALLOCATE].task_max_count = sim->boid_count;
 					sim->stage_params[BOID_SIM_STAGE_FILL].task_max_count = sim->boid_count;
 					sim->stage_params[BOID_SIM_STAGE_RESOLVE].task_max_count = sim->boid_count;
@@ -954,9 +961,6 @@ void* boid_sim_thread(Thread *thread)
 
 		switch(sim->stage)
 		{
-			case BOID_SIM_STAGE_COUNT:
-				boid_sim_count(p);
-			break;
 			case BOID_SIM_STAGE_ALLOCATE:
 				if(p->global_index == 0)
 				{
