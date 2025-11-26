@@ -305,6 +305,32 @@ void draw_boid_sim_grid(DeviceVertexBuffer *vb, Camera2 camera, SimpleFont simpl
 			BoidSimCell *cell = &sim->cells[x + sim->cells_width * y];
 		}
 	}
+
+	// Draw position granularity (slow af)
+	if(0)
+	{
+		for(u32 y = 0; y < (1<<12); y++)
+		{
+			for(u32 x = 0; x < (1<<12); x++)
+			{
+				fvec2 aa = fvec2_make(x,y);		
+				fvec2 bb = fvec2_make(x+1,y+1);		
+				aa = fvec2_scalar_div(aa, (1<<12));
+				aa = fvec2_add(aa, a);
+				bb = fvec2_scalar_div(bb, (1<<12));
+				bb = fvec2_add(bb, a);
+				fvec4 c;
+				if((x+y)&1)
+					c = fvec4_make(0.5, 0.5, 0.9, 0.4);
+				else
+					c = fvec4_make(0.9, 0.5, 0.0, 0.4);
+
+				gdraw_rectangle(vb, aa, bb, c);
+			}
+		}
+	}
+
+
 	end_temp(temp);
 	atomic_store(&sim->should_draw, false);
 	barrier_wait(sim->host_barrier_for_two);
@@ -436,6 +462,10 @@ void boid_sim_reset(BoidSimParams *p)
 		}
 	}
 
+	
+
+
+
 	is_first_thread = barrier_wait(sim->all_barriers[atomic_load(&sim->thread_count)-1]);
 	{
 		ThreadGroup *tg = enter_thread_group(p, true);
@@ -494,7 +524,7 @@ void boid_sim_allocate(BoidSimParams *p)
 			global_boid_offset += boid_count;
 		}
 	}
-	else
+	else if(1)
 	{
 		// Saves around 35 us (10% speedup) ... rough
 		simde__m256i indices = simde_mm256_set_epi64x((u64)sim->cells,(u64)sim->cell_counters,(u64)velocities, (u64)positions);
@@ -526,7 +556,12 @@ void boid_sim_allocate(BoidSimParams *p)
 			_mm_store_epi64(current_cell, vectors);
 		}while(current_cell < last_cell);
 	}
+	else
+	{
+	}
+
 }
+
 
 fvec2 boid_sim_uvec2_to_fvec2(uvec2 u)
 {
