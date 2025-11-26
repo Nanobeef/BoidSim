@@ -370,37 +370,6 @@ Task reserve_boid_sim_task(BoidSimParams *p, ThreadGroup *group)
 	return task;
 }
 
-void boid_sim_count(BoidSimParams *p)
-{
-	ThreadGroup *tg = enter_thread_group(p, true);
-	Task task;
-	BoidSim *sim = p->sim;
-
-
-	u32 cells_count = sim->cells_count / tg->group_count;
-	u32 cells_start = cells_count * tg->group_index;
-	u32 cells_end = cells_start + cells_count;
-
-
-	fvec2 *pos=  sim->positions;
-	while((task = reserve_boid_sim_task(p, tg)).has_work)
-	{
-		for(u32 i = task.index; i < task.count + task.index; i++)
-		{
-			uvec2 upos = boid_sim_fvec2_to_uvec2(pos[i]);
-			u32 x = upos.x >> sim->cells_width_rsh;
-			u32 y = upos.y >> sim->cells_height_rsh;
-			u32 boid_cell_index = x + y * sim->cells_width;
-			if((boid_cell_index >= cells_start) && (boid_cell_index < cells_end))
-			{
-				atomic u16 *cell  = sim->cell_counters + boid_cell_index;
-				u16 current_count = atomic_fetch_add_explicit(cell, 1, memory_order_relaxed); // explicit does not help much
-				sim->cell_indices[i].index = current_count;
-				sim->cell_indices[i].cell = boid_cell_index;
-			}
-		}
-	}
-}
 
 
 void boid_sim_reset(BoidSimParams *p)
@@ -468,9 +437,36 @@ void boid_sim_reset(BoidSimParams *p)
 	}
 
 	is_first_thread = barrier_wait(sim->all_barriers[atomic_load(&sim->thread_count)-1]);
-	boid_sim_count(p);
+	{
+		ThreadGroup *tg = enter_thread_group(p, true);
+		Task task;
+		BoidSim *sim = p->sim;
 
 
+		u32 cells_count = sim->cells_count / tg->group_count;
+		u32 cells_start = cells_count * tg->group_index;
+		u32 cells_end = cells_start + cells_count;
+
+
+		fvec2 *pos=  sim->positions;
+		while((task = reserve_boid_sim_task(p, tg)).has_work)
+		{
+			for(u32 i = task.index; i < task.count + task.index; i++)
+			{
+				uvec2 upos = boid_sim_fvec2_to_uvec2(pos[i]);
+				u32 x = upos.x >> sim->cells_width_rsh;
+				u32 y = upos.y >> sim->cells_height_rsh;
+				u32 boid_cell_index = x + y * sim->cells_width;
+				if((boid_cell_index >= cells_start) && (boid_cell_index < cells_end))
+				{
+					atomic u16 *cell  = sim->cell_counters + boid_cell_index;
+					u16 current_count = atomic_fetch_add_explicit(cell, 1, memory_order_relaxed); // explicit does not help much
+					sim->cell_indices[i].index = current_count;
+					sim->cell_indices[i].cell = boid_cell_index;
+				}
+			}
+		}
+	}
 }
 
 
