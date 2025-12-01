@@ -77,7 +77,7 @@ void main_init(u64 size)
 {
 	while(allocate_arena(size, &main_arena) == false)
 	{
-		printf("%lu\n", size);
+		//printf("%lu\n", size);
 		size /= 2;
 	}
 	init_threads();
@@ -131,7 +131,7 @@ b32 allocate_arena(u64 size, Arena* out)
 	void* data = mmap(0, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0,0);				
 	if(data == MAP_FAILED)
 	{
-		perror("mmap");
+	//	perror("mmap");
 		return false;
 	}
 	*out = make_arena(size, data);

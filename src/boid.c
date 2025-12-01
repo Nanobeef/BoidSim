@@ -1,5 +1,7 @@
 #include "boid.h"
 #include <simde/x86/avx512.h>
+#include <simde/x86/avx2.h>
+#include <simde/x86/sse.h>
 #include "device_graphics.h"
 
 
@@ -7,28 +9,29 @@ void* boid_sim_thread(Thread *thread);
 BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_count, Arena *arena)
 {
 	max_thread_count = THREAD_COUNT;
+	// WIP: Group count seems to matter more with multi die cpus.
+	// CCD: Core Complex Die
+	// On AMD 4900HS (1 CCD) the group count has less of an effect
+	// On AMD 7950x  (2 CCD) the group count of 2 is alot faster than 1.
+	u32 group_count = 1;
+	u32 threads_per_group = 16;
 	if(max_thread_count >= 32)
 	{
 		max_thread_count = 32;	
+		group_count = 4;
 	}
 	else
 	{
 		max_thread_count = 16;	
+		group_count = 4;
 	}
-
+	threads_per_group = max_thread_count / group_count;
 	u32 boid_sim_mod = 1024 * max_thread_count;
-
 	max_boid_count = 1024 * 1024 * 4;
-
 	max_boid_count = forward_align_uint(max_boid_count, boid_sim_mod);
-
 	u32 boid_count_limit = 512 * 1024 * 1024 - 1024;
-
 	if(max_boid_count >= boid_count_limit)
 	{
-		print("I am very sorry, you may only allocate a maximum of (512*1024*1024-1024) (%u64) boids. The number (%u64) is (%u64) more than that. Please back off. Your GPU thanks you. FYI: The size of the contiguous GPU buffers will surpass a limit.\n", 
-		// the limit is not x-1 but instead x-1024 because otherwise RenderDoc will not capture a frame. Probably because of buffer alignment.
-			boid_count_limit, max_boid_count, max_boid_count - boid_count_limit);
 		max_boid_count = boid_count_limit;
 	}
 
@@ -81,15 +84,15 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 		.task_size = 1024,		
 		.task_max_count = sim->boid_count,
 		.thread_count =  max_thread_count,
-		.group_size = 16,
-		.group_count = max_thread_count / 16,
+		.group_size = threads_per_group,
+		.group_count = group_count,
 	};
 	sim->stage_params[BOID_SIM_STAGE_FILL] = (BoidSimStageParams) {
 		.stage = BOID_SIM_STAGE_FILL,
 		.task_size = 1024,		
 		.task_max_count = sim->boid_count,
-		.thread_count =  max_thread_count,
-		.group_size = 16,
+		.thread_count =  threads_per_group,
+		.group_size = group_count,
 		.group_count = max_thread_count / 16,
 	};
 	sim->stage_params[BOID_SIM_STAGE_RESOLVE] = (BoidSimStageParams) {
@@ -97,16 +100,16 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 		.task_size = 1024,
 		.task_max_count = sim->boid_count,
 		.thread_count =  max_thread_count,
-		.group_size = 16,
-		.group_count = max_thread_count / 16,
+		.group_size = threads_per_group,
+		.group_count = group_count,
 	};
 	sim->stage_params[BOID_SIM_STAGE_RESET] = (BoidSimStageParams) {
 		.stage = BOID_SIM_STAGE_RESET,
 		.task_size = 1024,		
 		.task_max_count = sim->boid_count,
 		.thread_count =  max_thread_count,
-		.group_size = 16,
-		.group_count = max_thread_count / 16,
+		.group_size = threads_per_group,
+		.group_count = group_count,
 	};
 
 	{
@@ -121,7 +124,6 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 		bp->cohesion_strength_norm = 0.8;
 		bp->alignment_strength_norm = 0.7;
 
-
 		bp->randomness_norm = 0.1;
 		bp->boid_size_norm = 0.5;
 		bp->min_speed_norm = 0.2;
@@ -134,21 +136,13 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 		bp->show_time = false;
 	}
 
-
-	for(u32 i = 0; i < BOID_SIM_FRAME_COUNT; i++)
+	for(u32 i = 0; i < BOID_SIM_FRAME_COUNT * 2; i++)
 	{
-		u64 position_device_buffer_size = max_boid_count * (sizeof(uvec2));
-		sim->position_device_buffers[i] = allocate_device_buffer(device->explicit_arena, position_device_buffer_size, DEVICE_MEMORY_TYPE_HOST_CACHED, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, arena);
-		u64 velocity_device_buffer_size = max_boid_count * (sizeof(svec2));
-		sim->velocity_device_buffers[i] = allocate_device_buffer(device->explicit_arena, velocity_device_buffer_size, DEVICE_MEMORY_TYPE_HOST_CACHED, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, arena);
-		sim->frame_positions[i] = sim->position_device_buffers[i].memory.mapping;
-		sim->frame_velocities[i] = sim->velocity_device_buffers[i].memory.mapping;
-	}
+		sim->vector_union[i] = arena_alloc(sizeof(fvec2) * max_boid_count, 0,0,arena);	
 
-	sim->positions = sim->frame_positions[0];
-	sim->velocities = sim->frame_velocities[0];
-	sim->next_positions = sim->frame_positions[1];
-	sim->next_velocities = sim->frame_velocities[1];
+		u64 device_buffer_size = max_boid_count * (sizeof(u32));
+		sim->device_buffers[i] = allocate_device_buffer(device->explicit_arena, device_buffer_size, DEVICE_MEMORY_TYPE_HOST_CACHED, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, arena);
+	}
 
 	for(u32 i = 0; i < max_thread_count; i++)
 	{
@@ -166,20 +160,14 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 			sim->thread_groups[i].all_barriers[j] = create_barrier(j+1, arena);
 		}
 	}
-// Stages
+
 	{
-		
 		sim->cell_counters = arena_alloc(sim->cells_count * sizeof(u16), PAGE_SIZE, true, arena);
 		sim->cell_indices = arena_alloc(sim->max_boid_count * sizeof(CellIndex), PAGE_SIZE, true, arena);
-	}	
-//
-	{
 		sim->cells = arena_alloc(sizeof(BoidSimCell) * sim->cells_count, PAGE_SIZE,0, arena);
-	}
-//
+	}	
 
-	u64 required_size = GB * 8;
-
+	u64 required_size = GB * 8; // out of a hat
 	sim->arena = allocate_sub_arena(required_size, arena);
 
 	barrier_wait(sim->host_barrier);
@@ -216,61 +204,10 @@ void reset_boid_sim(BoidSim *sim)
 void cmd_draw_boid_sim_boids(DeviceCommandBuffer cb, BoidSim *sim)
 {
 	VkBuffer buffers[] = {sim->position_device_buffers[sim->frame_index].handle, sim->velocity_device_buffers[sim->frame_index].handle};
-	u64 offsets[] = {0, 0};
+	u64 offsets[] = {0,0};
 	vkCmdBindVertexBuffers(cb.handle, 0,2,buffers,offsets);
 	u32 boid_count = atomic_load(&sim->draw_count);
 	vkCmdDraw(cb.handle, 3, boid_count,0,0);
-}
-
-void draw_boid_sim_overlay(DeviceVertexBuffer *vb, Camera2 camera, SimpleFont simple_font, BoidSim *sim)
-{
-	f32 unit_pixel = camera.unit_pixel.y;
-	fvec2 pos_a = camera.orig_top_left;
-	fvec2 pos_b = camera.orig_bottom_right;
-	fvec2 pos = pos_a;
-	pos = fvec2_scalar_add(pos, unit_pixel * 2);
-
-	Temp temp = begin_temp(0);
-
-	fvec4 text_color = fvec4_make(0.1, 0.8, 0.1, 1.0);
-
-	u8 *str = 0;
-	BoidSimStageParams sp;
-
-//	" Fill:     %u64 us \t* %u32 threads = %u64 us\n"
-//	" Resolve:  %u64 us \t* %u32 threads = %u64 us\n"
-
-
-	sp = sim->stage_params[BOID_SIM_STAGE_ALLOCATE];
-	str = string_print(temp.arena,
-	" Alloc:     %u64 us\n",
-	sim->stage_times[sp.stage] / 1000
-	).str;
-	pos = gdraw_simple_text_box(vb, simple_font, str, text_color, pos_a, pos_b, pos, unit_pixel * 24);
-
-	sp = sim->stage_params[BOID_SIM_STAGE_FILL];
-	str = string_print(temp.arena,
-	" Fill:      %u64 us\n",
-	sim->stage_times[sp.stage] / 1000
-	).str;
-	pos = gdraw_simple_text_box(vb, simple_font, str, text_color, pos_a, pos_b, pos, unit_pixel * 24);
-
-
-	sp = sim->stage_params[BOID_SIM_STAGE_RESOLVE];
-	str = string_print(temp.arena,
-	" Resolve:   %u64 us\n",
-	sim->stage_times[sp.stage] / 1000
-	).str;
-	pos = gdraw_simple_text_box(vb, simple_font, str, text_color, pos_a, pos_b, pos, unit_pixel * 24);
-
-	sp = sim->stage_params[BOID_SIM_STAGE_RESET];
-	str = string_print(temp.arena,
-	" Reset:     %u64 us\n",
-	sim->stage_times[sp.stage] / 1000
-	).str;
-	pos = gdraw_simple_text_box(vb, simple_font, str, text_color, pos_a, pos_b, pos, unit_pixel * 24);
-
-	end_temp(temp);
 }
 
 void draw_boid_sim_grid(DeviceVertexBuffer *vb, Camera2 camera, SimpleFont simple_font, BoidSim *sim)
@@ -306,31 +243,6 @@ void draw_boid_sim_grid(DeviceVertexBuffer *vb, Camera2 camera, SimpleFont simpl
 		}
 	}
 
-	// Draw position granularity (slow af)
-	if(0)
-	{
-		for(u32 y = 0; y < (1<<12); y++)
-		{
-			for(u32 x = 0; x < (1<<12); x++)
-			{
-				fvec2 aa = fvec2_make(x,y);		
-				fvec2 bb = fvec2_make(x+1,y+1);		
-				aa = fvec2_scalar_div(aa, (1<<12));
-				aa = fvec2_add(aa, a);
-				bb = fvec2_scalar_div(bb, (1<<12));
-				bb = fvec2_add(bb, a);
-				fvec4 c;
-				if((x+y)&1)
-					c = fvec4_make(0.5, 0.5, 0.9, 0.4);
-				else
-					c = fvec4_make(0.9, 0.5, 0.0, 0.4);
-
-				gdraw_rectangle(vb, aa, bb, c);
-			}
-		}
-	}
-
-
 	end_temp(temp);
 	atomic_store(&sim->should_draw, false);
 	barrier_wait(sim->host_barrier_for_two);
@@ -345,7 +257,6 @@ ThreadGroup* enter_thread_group(BoidSimParams *p, b32 is_group_local_task)
 	u32 group_size = atomic_load(&sim->stage_params[stage].group_size);
 	u32 group_index = p->global_index / group_size;
 	u32 group_count = atomic_load(&sim->thread_count) / group_size;
-
 
 	ThreadGroup *group = sim->thread_groups + group_index;
 
@@ -395,8 +306,6 @@ Task reserve_boid_sim_task(BoidSimParams *p, ThreadGroup *group)
 	task.index += atomic_load(&group->task_index);
 	return task;
 }
-
-
 
 void boid_sim_reset(BoidSimParams *p)
 {
@@ -462,10 +371,6 @@ void boid_sim_reset(BoidSimParams *p)
 		}
 	}
 
-	
-
-
-
 	is_first_thread = barrier_wait(sim->all_barriers[atomic_load(&sim->thread_count)-1]);
 	{
 		ThreadGroup *tg = enter_thread_group(p, true);
@@ -499,15 +404,15 @@ void boid_sim_reset(BoidSimParams *p)
 	}
 }
 
-
 void boid_sim_allocate(BoidSimParams *p)
 {
 	BoidSim *sim = p->sim;
 
-	fvec2 *positions = sim->next_positions;
-	fvec2 *velocities = sim->next_velocities;
+	fvec2 *positions = sim->fill_positions;
+	fvec2 *velocities = sim->fill_velocities;
 
-	if(0)
+
+	if(1)
 	{
 		u64 boid_count = 0;
 		// Volatile makes it not crash?
@@ -553,7 +458,7 @@ void boid_sim_allocate(BoidSimParams *p)
 
 			current_cell = (void*)dst[3];
 			current_cell->boid_count = (u64)((u16*)dst[2])[0];
-			_mm_store_epi64(current_cell, vectors);
+			simde_mm_store_si128((simde__m128i*)current_cell, vectors);
 		}while(current_cell < last_cell);
 	}
 	else
@@ -774,8 +679,8 @@ void boid_sim_resolve(BoidSimParams *p)
 		for(u32 i = task.index; i < task.count + task.index; i++)
 		{
 			// Read
-			fvec2 pos = sim->next_positions[i];
-			fvec2 vel = sim->next_velocities[i];
+			fvec2 pos = sim->fill_positions[i];
+			fvec2 vel = sim->fill_velocities[i];
 
 			uvec2 upos = boid_sim_fvec2_to_uvec2(pos);
 			svec2 svel = boid_sim_fvec2_to_svec2(vel);
@@ -864,9 +769,9 @@ void boid_sim_resolve(BoidSimParams *p)
 			}
 
 
-			svel = svec2_rsh(svel, 1);
-			upos.x += svel.x;
-			upos.y += svel.y;
+			svec2 sv = svec2_rsh(svel, 1);
+			upos.x += sv.x;
+			upos.y += sv.y;
 			pos = boid_sim_uvec2_to_fvec2(upos);
 			if(attractor_enable)
 			{
@@ -879,9 +784,24 @@ void boid_sim_resolve(BoidSimParams *p)
 				}
 			}
 
-		
 			sim->positions[i] = pos;
 			sim->velocities[i] = vel;
+
+			{
+				u32 *device_positions = sim->position_device_buffers[sim->next_frame_index].memory.mapping;
+				u32 *device_velocities = sim->velocity_device_buffers[sim->next_frame_index].memory.mapping;
+				u32 bits;
+
+				bits = 0;
+				bits |= ((upos.x >> 16)) << 0;
+				bits |= ((upos.y >> 16)) << 16;
+				device_positions[i] = bits;
+
+				bits = 0;
+				bits |= ((u32)((svel.x >> 16) + (1<<15))) << 0;
+				bits |= ((u32)((svel.y >> 16) + (1<<15))) << 16;
+				device_velocities[i] = bits;
+			}
 
 
 			// Count stage
@@ -896,6 +816,8 @@ void boid_sim_resolve(BoidSimParams *p)
 					sim->cell_indices[i].cell = boid_cell_index;
 				}
 			}
+
+
 		}  // for i
 	} // while task
 }
@@ -913,8 +835,6 @@ void* boid_sim_thread(Thread *thread)
 		b32 is_first_thread = barrier_wait(sim->all_barriers[atomic_load(&sim->thread_count)-1]);
 		if(is_first_thread)
 		{
-
-
 			BoidSimStage last_stage = atomic_load(&sim->stage);
 			BoidSimStage stage = last_stage + 1;
 			b32 should_reset = false;
@@ -955,6 +875,7 @@ void* boid_sim_thread(Thread *thread)
 				reset_arena(&sim->arena);
 				stage = (BoidSimStage)0;	
 				sim->frame_index = (sim->frame_index + 1) % BOID_SIM_FRAME_COUNT;
+				sim->next_frame_index = (sim->frame_index + 1) % BOID_SIM_FRAME_COUNT;
 				atomic_fetch_add(&sim->tick_accum, 1);
 			}
 			{

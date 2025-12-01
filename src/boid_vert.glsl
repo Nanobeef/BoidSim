@@ -1,8 +1,8 @@
 #version 450
 #pragma shader_stage(vertex)
 
-layout(location = 0) in vec2 in_position;
-layout(location = 1) in vec2 in_velocity;
+layout(location = 0) in uint in_position_bits;
+layout(location = 1) in uint in_velocity_bits;
 
 layout(location = 0) out vec4 out_color;
 layout(location = 1) out vec2 out_velocity;
@@ -18,11 +18,27 @@ const vec2 center = vec2(0.0, 0.25);
 
 void main()
 {
-	vec2 velocity = in_velocity;
 
-	vec2 position = in_position;
+
+	uint px = bitfieldExtract(in_position_bits, 0, 16);
+	uint py = bitfieldExtract(in_position_bits, 16, 16);
+
+	vec2 position;
+	position = vec2(px,py) / float(1<<16);
 	position -= vec2(0.5);
 
+	vec2 velocity;
+	uint vx = bitfieldExtract(in_velocity_bits, 0, 16);
+	uint vy = bitfieldExtract(in_velocity_bits, 16, 16);
+	velocity = vec2(vx,vy) - 32768.0;
+	if(abs(velocity.x) < 1.0)
+	{
+		velocity.x = 1.0;
+	}
+	if(abs(velocity.y) < 1.0)
+	{
+		velocity.y = 1.0;
+	}
 	vec2 u = normalize(velocity);
 
 	u.y = -u.y;

@@ -5,9 +5,12 @@ extern b32 global_keep_terminal_open;
 
 #include "ui.h"
 
+#include "prefix_sum.h"
+
 s32 main()
 {
 	main_init(GB * 64lu);
+
 
 	boid_sim_resolve_test();
 
@@ -28,7 +31,8 @@ s32 main()
 	Event *event_ring_buffer = allocate_ring_buffer(Event, 1024, &main_arena);
 	FrameEvents fe = {.event_ring_buffer = event_ring_buffer};
 	Instance *instance = create_instance(&main_arena);
-	Device* device = create_device_by_type(instance, VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU, &main_arena);
+//	Device* device = create_device_by_type(instance, VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU, &main_arena);
+	Device* device = create_device_by_type(instance, VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU, &main_arena);
 	window_properties.device = device;
 	Window *window = create_window(window_properties, 1024, 1024, ring_current(resize_arena_ring), &main_arena);
 	DeviceSurface surface; memcpy(&surface, window->vulkan_surface, sizeof(DeviceSurface));

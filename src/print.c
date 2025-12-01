@@ -86,6 +86,10 @@ u64 string_to_uint(const char **str)
 
 char* cstring_to_string(const char *cstr, char *out, char *end)
 {
+	if(cstr == 0)
+	{
+		return cstring_to_string("(null)", out,end);
+	}
 	while(*cstr && (out != end))
 	{
 		*out++ = *cstr++;

@@ -7,8 +7,6 @@ DeviceRendererLimits device_renderer_limits = {0};
 
 DeviceRenderer create_device_renderer(Device *device, DeviceRendererCreateInfo *pointer_create_info, u32 frame_count, uvec2 frame_size, Arena* resize_arena, Arena *arena)
 {
-
-
 	DeviceRenderer r = {
 		.device = device,
 		.frame_count = frame_count,
@@ -276,8 +274,6 @@ DeviceRenderer create_device_renderer(Device *device, DeviceRendererCreateInfo *
 			(u32*)_binary_bin_boid_frag_spv_start
 		);
 
-
-
 		VkPipelineShaderStageCreateInfo vertex2_vertex_stage = {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,	
 			.stage = VK_SHADER_STAGE_VERTEX_BIT,
@@ -357,12 +353,12 @@ DeviceRenderer create_device_renderer(Device *device, DeviceRendererCreateInfo *
 		VkVertexInputBindingDescription boid_bindings[] = {
 			{
 				.binding = 0,
-				.stride = sizeof(fvec2),
+				.stride = sizeof(u32),
 				.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE,
 			},
 			{
 				.binding = 1,
-				.stride = sizeof(fvec2),
+				.stride = sizeof(u32),
 				.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE,
 			},
 		};
@@ -371,13 +367,13 @@ DeviceRenderer create_device_renderer(Device *device, DeviceRendererCreateInfo *
 			{
 				.binding = 0,
 				.location = 0,
-				.format = VK_FORMAT_R32G32_SFLOAT,
+				.format = VK_FORMAT_R32_UINT,
 				.offset = 0,
 			},
 			{
 				.binding = 1,
 				.location = 1,
-				.format = VK_FORMAT_R32G32_SFLOAT,
+				.format = VK_FORMAT_R32_UINT,
 				.offset = 0,
 			},
 		};

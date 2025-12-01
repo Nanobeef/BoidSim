@@ -57,14 +57,11 @@ typedef struct{
 	u32 group_count;
 }BoidSimStageParams;
 
-
 union BoidSimParams;
 
 #define BOID_SIM_FRAME_COUNT 2
 
 typedef struct{
-
-
 	BoidSimStageParams stage_params[BOID_SIM_STAGE_MAX];
 
 	atomic u64 tick_accum;
@@ -92,17 +89,24 @@ typedef struct{
 	u32 max_boid_count;	
 	u32 max_thread_count;
 	u32 max_thread_group_count;
-	DeviceBuffer position_device_buffers[BOID_SIM_FRAME_COUNT];
-	DeviceBuffer velocity_device_buffers[BOID_SIM_FRAME_COUNT];
 
-	fvec2* frame_positions[BOID_SIM_FRAME_COUNT];
-	fvec2* frame_velocities[BOID_SIM_FRAME_COUNT];
+	union{
+		struct{
+			DeviceBuffer position_device_buffers[BOID_SIM_FRAME_COUNT];
+			DeviceBuffer velocity_device_buffers[BOID_SIM_FRAME_COUNT];
+		};
+		DeviceBuffer device_buffers[BOID_SIM_FRAME_COUNT * 2];
+	};
 
-	fvec2* positions;
-	fvec2* velocities;
-
-	fvec2* next_positions;
-	fvec2* next_velocities;
+	union{
+		struct{
+			fvec2* fill_positions;
+			fvec2* fill_velocities;
+			fvec2* positions;
+			fvec2* velocities;
+		};
+		fvec2 *vector_union[4];
+	};
 
 	LoopTime loop_time;
 	u64 start_time, end_time;
