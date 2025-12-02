@@ -136,7 +136,6 @@ typedef struct{
 //
 	BoidSimCell *cells;
 //
-
 }BoidSim;
 
 typedef union BoidSimParams{

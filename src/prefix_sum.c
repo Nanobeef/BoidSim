@@ -1,7 +1,9 @@
 #include "prefix_sum.h"
 
+#include <simde/x86/avx512.h>
 
-typedef u64 uPS;
+
+typedef u32 uPS;
 
 void prefix_sum_simple(uPS *src, uPS *dst)
 {
@@ -11,6 +13,10 @@ void prefix_sum_simple(uPS *src, uPS *dst)
 		total += src[i];
 		dst[i] = total;
 	}
+}
+
+void prefix_sum_simd(u32 *src, u32 *dst)
+{
 }
 
 void prefix_sum_init(uPS *dst)
@@ -56,11 +62,8 @@ void prefix_sum_bench()
 	prefix_sum_simple(src, dst);
 	memzero(dst, buffer_size(dst));
 
-	run_prefix_sum("Simple", src, dst, ref, prefix_sum_simple);
-	run_prefix_sum("Simple", src, dst, ref, prefix_sum_simple);
-	run_prefix_sum("Simple", src, dst, ref, prefix_sum_simple);
-	run_prefix_sum("Simple", src, dst, ref, prefix_sum_simple);
-	run_prefix_sum("Simple", src, dst, ref, prefix_sum_simple);
+	//run_prefix_sum("Simple", src, dst, ref, prefix_sum_simple);
+	run_prefix_sum("SIMD", src, dst, ref, prefix_sum_simd);
 
 	end_temp(temp);
 }

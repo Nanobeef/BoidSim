@@ -10,10 +10,9 @@ extern b32 global_keep_terminal_open;
 s32 main()
 {
 	main_init(GB * 64lu);
-
-
+	prefix_sum_bench();
+	return 0;
 	boid_sim_resolve_test();
-
 	const u32 frame_count = 2;
 	const u32 resize_count = 2;
 	u32 frame_index = 0;

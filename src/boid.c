@@ -307,6 +307,23 @@ Task reserve_boid_sim_task(BoidSimParams *p, ThreadGroup *group)
 	return task;
 }
 
+void boid_sim_pack_boid(BoidSim *sim, uvec2 upos, svec2 svel, u32 i)
+{
+	u32 *device_positions = sim->position_device_buffers[sim->next_frame_index].memory.mapping;
+	u32 *device_velocities = sim->velocity_device_buffers[sim->next_frame_index].memory.mapping;
+	u32 bits;
+
+	bits = 0;
+	bits |= ((upos.x >> 16)) << 0;
+	bits |= ((upos.y >> 16)) << 16;
+	device_positions[i] = bits;
+
+	bits = 0;
+	bits |= ((u32)((svel.x >> 16) + (1<<15))) << 0;
+	bits |= ((u32)((svel.y >> 16) + (1<<15))) << 16;
+	device_velocities[i] = bits;
+}
+
 void boid_sim_reset(BoidSimParams *p)
 {
 	Task task;
@@ -336,6 +353,7 @@ void boid_sim_reset(BoidSimParams *p)
 				prng_memset(&rg, &svel, sizeof(svec2));
 				pos[i] = boid_sim_uvec2_to_fvec2(upos);
 				vel[i] = boid_sim_svec2_to_fvec2(svel);
+				boid_sim_pack_boid(sim, upos, svel, i);
 			}
 		}
 		else
@@ -613,6 +631,7 @@ u32 boid_sim_search_average(BoidSimParams *p, uvec2 upos, fvec2 orig_pos, fvec2 
 
 }
 
+
 void boid_sim_resolve(BoidSimParams *p)
 {
 	ThreadGroup *tg= enter_thread_group(p, false);
@@ -787,21 +806,7 @@ void boid_sim_resolve(BoidSimParams *p)
 			sim->positions[i] = pos;
 			sim->velocities[i] = vel;
 
-			{
-				u32 *device_positions = sim->position_device_buffers[sim->next_frame_index].memory.mapping;
-				u32 *device_velocities = sim->velocity_device_buffers[sim->next_frame_index].memory.mapping;
-				u32 bits;
-
-				bits = 0;
-				bits |= ((upos.x >> 16)) << 0;
-				bits |= ((upos.y >> 16)) << 16;
-				device_positions[i] = bits;
-
-				bits = 0;
-				bits |= ((u32)((svel.x >> 16) + (1<<15))) << 0;
-				bits |= ((u32)((svel.y >> 16) + (1<<15))) << 16;
-				device_velocities[i] = bits;
-			}
+			boid_sim_pack_boid(sim, upos, svel, i);
 
 
 			// Count stage

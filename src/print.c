@@ -48,6 +48,8 @@ const Keyword keywords[] = { // Sort manually for now.
 
 	init_keyword("u16", TYPE_U16),
 	init_keyword("u32", TYPE_U32),
+//	init_keyword("u32x16", TYPE_U32X16_VECTOR),
+//	init_keyword("u32x8", TYPE_U32X8_VECTOR),
 	init_keyword("u64", TYPE_U64),
 	init_keyword("u8", TYPE_U8),
 
@@ -609,6 +611,21 @@ void handle_keyword(Print *p, va_list l)
 			uvec2 v = va_arg(l, uvec2);
 			handle_vector_keyword(p, TYPE_U32, 2, &v);
 		}break;
+		case TYPE_U32X16_VECTOR:
+		{
+			simde__m512i	v = va_arg(l, simde__m512i);
+			align(64) u32 s[16];
+			simde_mm512_store_epi32(s, v);
+			handle_simd_vector_keyword(p, TYPE_U32, 16, s);
+		}break;
+		case TYPE_U32X8_VECTOR:
+		{
+			simde__m256i	v = va_arg(l, simde__m256i);
+			align(32) u32 s[8];
+			simde_mm256_storeu_epi32(s, v);
+			handle_simd_vector_keyword(p, TYPE_U32, 8, s);
+		}break;
+			
 
 		case TYPE_S32VEC2:
 		{
@@ -797,8 +814,6 @@ void handle_escape(Print *p, va_list l)
 		handle_keyword(p, l);
 	}
 }
-
-
 
 String8 va_string_print(Arena *arena, const char *format, va_list l)
 {
