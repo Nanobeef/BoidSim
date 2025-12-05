@@ -58,7 +58,6 @@ typedef struct{
 }BoidSimStageParams;
 
 union BoidSimParams;
-
 #define BOID_SIM_FRAME_COUNT 2
 
 typedef struct{

@@ -35,6 +35,8 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 		max_boid_count = boid_count_limit;
 	}
 
+	u32 cell_bits = 7;
+
 	u32 max_thread_group_count = max_thread_count;
 	BoidSim *sim = arena_alloc(sizeof(BoidSim), 0,0, arena);
 	*sim = (BoidSim){
@@ -60,10 +62,10 @@ BoidSim* create_boid_sim(Device *device, u32 max_boid_count, u32 max_thread_coun
 		.should_run = true,
 		.should_reset = true,
 		.should_draw = false,
-		.cells_width = 256,
-		.cells_height = 256,
-		.cells_width_rsh = 24,
-		.cells_height_rsh = 24,
+		.cells_width = (1<<cell_bits),
+		.cells_height = (1<<cell_bits),
+		.cells_width_rsh = 32 - cell_bits,
+		.cells_height_rsh = 32 - cell_bits,
 		.frame_index = 0,
 	};
 	sim->cells_count = sim->cells_width * sim->cells_height;
@@ -561,16 +563,18 @@ u32 boid_sim_search_average(BoidSimParams *p, uvec2 upos, fvec2 orig_pos, fvec2 
 {
 	BoidSim *sim = p->sim;
 
-	u32 mask = sim->cells_width-1;
-	u32 cell_rsh = sim->cells_width_rsh;
+	u32 width_mask = sim->cells_width-1;
+	u32 height_mask = sim->cells_height-1;
+	u32 width_rsh = sim->cells_width_rsh;
+	u32 height_rsh = sim->cells_height_rsh;
 
-	u8 uy0 = (upos.y-range) >> cell_rsh;
-	u8 uy1 = (upos.y+range) >> cell_rsh;
-	uy1 = (uy1+1);
+	u32 uy0 = (upos.y-range) >> height_rsh;
+	u32 uy1 = (upos.y+range) >> height_rsh;
+	uy1 = (uy1+1) & height_mask;
 
-	u8 ux0 = (upos.x-range) >> cell_rsh;
-	u8 ux1 = (upos.x+range) >> cell_rsh;
-	ux1 = (ux1+1);
+	u32 ux0 = (upos.x-range) >> width_rsh;
+	u32 ux1 = (upos.x+range) >> width_rsh;
+	ux1 = (ux1+1) & width_mask;
 
 	u32 count = 0;
 
@@ -585,15 +589,14 @@ u32 boid_sim_search_average(BoidSimParams *p, uvec2 upos, fvec2 orig_pos, fvec2 
 		*out_vel = fvec2_make(0.0, 0.0);
 	}
 
-
 	f32 cell_size = 1.0f / (f32)sim->cells_width;
 
-	for(u8 uy = uy0; uy != uy1; uy = (uy+1))
+	for(u32 uy = uy0; uy != uy1; uy = (uy+1) & width_mask)
 	{
-		for(u8 ux = ux0; ux != ux1; ux = (ux+1))
+		for(u32 ux = ux0; ux != ux1; ux = (ux+1) & height_mask)
 		{
 			BoidSimCell *cell = &sim->cells[ux + (uy * sim->cells_width)];
-			uvec2 upos = uvec2_make(ux<<cell_rsh, uy<<cell_rsh);
+			uvec2 upos = uvec2_make(ux<<width_rsh, uy<<height_rsh);
 			fvec2 cell_pos = boid_sim_uvec2_to_fvec2(upos);
 
 			u32 corner_count = 0;
@@ -912,7 +915,6 @@ void* boid_sim_thread(Thread *thread)
 			cond_wait(sim->cond, sim->mutex);
 			mutex_unlock(sim->mutex);
 		}
-
 
 		is_first_thread = barrier_wait(sim->all_barriers[atomic_load(&sim->thread_count)-1]);
 
