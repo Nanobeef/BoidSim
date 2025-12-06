@@ -7,9 +7,37 @@ extern b32 global_keep_terminal_open;
 
 #include "prefix_sum.h"
 
+void hypot_test()
+{
+	u32 r = 1;
+
+	simde__m512 x0 = simde_mm512_set1_ps((f32)r);
+	simde__m512 x1 = simde_mm512_set1_ps((f32)(r*2));
+	simde__m512 y0 = simde_mm512_set1_ps((f32)r);
+	simde__m512 y1 = simde_mm512_set1_ps((f32)(r*2));
+
+	simde__m512 x = simde_mm512_sub_ps(x1,x0);
+	simde__m512 y = simde_mm512_sub_ps(y1,y0);
+
+	x = simde_mm512_mul_ps(x,x);
+	y = simde_mm512_mul_ps(y,y);
+
+	simde__m512 d = simde_mm512_add_ps(x,y);
+	d = simde_mm512_sqrt_ps(d); // High latency and throughput
+
+	f32 dst[16];
+	simde_mm512_store_ps(dst, d);
+	for(u32 i = 0; i < 8; i++)
+	{
+		print("%f32 ", dst[i]);
+	}
+	print("\n");
+}
+
 s32 main()
 {
 	main_init(GB * 64lu);
+	hypot_test();
 	const u32 frame_count = 2;
 	const u32 resize_count = 2;
 	u32 frame_index = 0;
