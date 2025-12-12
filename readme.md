@@ -108,3 +108,4 @@ Long Term:
 <img width="2552" height="1440" alt="screenshot-20251111-154259" src="https://github.com/user-attachments/assets/e0d1f052-333f-46db-803e-72120e87ea87" />
 <img width="860" height="1131" alt="screenshot-20251118-182015" src="https://github.com/user-attachments/assets/44b7f30d-939c-4e35-bc4e-04715e15b9d3" />
 <img width="2560" height="1441" alt="screenshot-20251118-182738" src="https://github.com/user-attachments/assets/3b5d53b2-5802-4aee-819f-a93262cbe899" />
+<img width="1246" height="1418" alt="screenshot-20251212-172511" src="https://github.com/user-attachments/assets/46ddd5a4-a239-4b0d-8f2e-4d9489352b10" />
