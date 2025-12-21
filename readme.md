@@ -4,7 +4,7 @@
 # CPU Boid Simulation
 
 ## Video
-
+This video is too long! Please skim and skip around.
 https://www.youtube.com/watch?v=yh0ttcGheHg
 
 ## About
