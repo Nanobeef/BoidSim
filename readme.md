@@ -31,7 +31,7 @@ A brute force search on 1 Million particles would require 1 Trillion comparisons
 
 This is the 3rd iteration of this type of simulation that I have made.
 
-All 3 version have used a fixed-grid spatial partining approach. Version 2 and 3 use integer coordinate (or conversion) and a bitshift to find the grid cells really fast. Still the more significant issue is cache-efficiency rather than instruction latency.
+All 3 Revision have used a fixed-grid spatial partining approach. Revision 2 and 3 use integer coordinate (or conRevision) and a bitshift to find the grid cells really fast. Still the more significant issue is cache-efficiency rather than instruction latency.
 
 1.) Floating-Point Coordinates
 - float-32 position and velocity
@@ -64,7 +64,7 @@ Right now the simulation can reasonably handle 500 Thousand boids on a Ryzen 9 7
 2.) Resolve Stage
 - Operate on boid array rather than boids in cell array. (change again)
 - Unroll the entire Reosolve stage.
-- SIMD int to float conversion
+- SIMD int to float conRevision
 - SIMD optimization of distance calculation.
 - Compact vectors (_mm512_mask_compress_ps) and remove duplicate comparisons
 - Make branchless at the cost of a few extra distance comparisons.
@@ -93,17 +93,17 @@ Long Term:
 
 # Pictures
 
-## First Version
+## First Revision
 		
 <img width="1770" height="1438" alt="screenshot-20250708-140338" src="https://github.com/user-attachments/assets/bf3246e7-aa8a-4d68-b848-81e38d0fcf62" />
 <img width="1811" height="1440" alt="screenshot-20250708-183427" src="https://github.com/user-attachments/assets/d442fdc8-fb7f-4fc3-be4a-14901edb6fc6" />
 <img width="1301" height="1307" alt="screenshot-20250807-231941" src="https://github.com/user-attachments/assets/0f6d4f47-ecfb-45cb-843b-10deeff0c374" />
 
-## Second Version
+## Second Revision
 
 <img width="2561" height="1441" alt="screenshot-20251111-153905" src="https://github.com/user-attachments/assets/efae42c1-bc5f-4f05-bd05-1847ee5e115f" />
 
-## Third Version
+## Third Revision
 
 <img width="2552" height="1440" alt="screenshot-20251111-154259" src="https://github.com/user-attachments/assets/e0d1f052-333f-46db-803e-72120e87ea87" />
 <img width="860" height="1131" alt="screenshot-20251118-182015" src="https://github.com/user-attachments/assets/44b7f30d-939c-4e35-bc4e-04715e15b9d3" />
