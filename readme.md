@@ -1,4 +1,4 @@
-
+This project is no longer being worked on. See https://github.com/Nanobeef/unified
 
 
 # CPU Boid Simulation
@@ -31,7 +31,7 @@ A brute force search on 1 Million particles would require 1 Trillion comparisons
 
 This is the 3rd iteration of this type of simulation that I have made.
 
-All 3 Revision have used a fixed-grid spatial partining approach. Revision 2 and 3 use integer coordinate (or conRevision) and a bitshift to find the grid cells really fast. Still the more significant issue is cache-efficiency rather than instruction latency.
+All 3 Revision have used a fixed-grid spatial partining approach. Revision 2 and 3 use integer coordinates, or conversion, and a bitshift to find the grid cells really fast. Still the more significant issue is cache-efficiency rather than instruction latency.
 
 1.) Floating-Point Coordinates
 - float-32 position and velocity
